@@ -1,0 +1,10 @@
+pywebview
+bcrypt
+google-generativeai
+flask
+flask-cors
+python-dotenv
+SpeechRecognition
+pyaudio
+edge-tts
+pygame
