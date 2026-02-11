@@ -1,6 +1,7 @@
 pywebview
 bcrypt
 google-generativeai
+ollama
 flask
 flask-cors
 python-dotenv

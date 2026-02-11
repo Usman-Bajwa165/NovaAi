@@ -13,7 +13,7 @@ from src.voice_engine import diagnostic_mic_test, scan_for_neural_links
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("JARVIS MICROPHONE DIAGNOSTIC TEST")
+    print("NOVA MICROPHONE DIAGNOSTIC TEST")
     print("=" * 60)
 
     # Run diagnostic

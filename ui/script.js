@@ -32,6 +32,22 @@ function showLogin() {
 
   const emailInput = document.getElementById("login-email");
   if (emailInput) emailInput.focus();
+
+  // Auto-fill saved credentials if available
+  try {
+    const raw = localStorage.getItem("nova_last_credentials");
+    if (raw) {
+      const creds = JSON.parse(raw);
+      if (creds.email) {
+        document.getElementById("login-email").value = creds.email;
+      }
+      if (creds.password) {
+        document.getElementById("login-pass").value = creds.password;
+      }
+    }
+  } catch (e) {
+    console.error("Failed to apply saved credentials:", e);
+  }
 }
 
 function handleKey(event, nextId) {
@@ -90,6 +106,15 @@ async function handleLogin() {
 
     if (result.success) {
       saveRecentLogin(email);
+      // Remember credentials for next manual login
+      try {
+        localStorage.setItem(
+          "nova_last_credentials",
+          JSON.stringify({ email, password: pass }),
+        );
+      } catch (e) {
+        console.error("Failed to save credentials:", e);
+      }
       onAuthSuccess(result);
     } else {
       setAuthMsg(result.message || "AUTHENTICATION FAILED.");
@@ -108,26 +133,28 @@ async function handleLogin() {
 }
 
 async function handleSignup() {
+  const nameInput = document.getElementById("signup-name");
   const emailInput = document.getElementById("signup-email");
   const passInput = document.getElementById("signup-pass");
 
-  if (!emailInput || !passInput) {
+  if (!nameInput || !emailInput || !passInput) {
     console.error("Signup form elements not found");
     return;
   }
 
+  const name = nameInput.value.trim();
   const email = emailInput.value.trim();
   const pass = passInput.value;
 
-  if (!email || !pass) {
-    setAuthMsg("EMAIL AND PASSWORD REQUIRED.");
+  if (!name || !email || !pass) {
+    setAuthMsg("NAME, EMAIL AND PASSWORD REQUIRED.");
     return;
   }
 
   try {
     setAuthMsg("GENERATING IDENTITY...");
 
-    const result = await pywebview.api.signup(email, pass);
+    const result = await pywebview.api.signup(name, email, pass);
 
     if (result.success) {
       setAuthMsg("IDENTITY GENERATED. AUTHENTICATING...");
@@ -159,25 +186,21 @@ function onAuthSuccess(user) {
   if (landingScreen) landingScreen.style.display = "none";
   if (agentScreen) agentScreen.style.display = "flex";
 
-  if (userEmailElement && user.email) {
-    userEmailElement.innerText = user.email.toUpperCase();
+  if (userEmailElement) {
+    // Prefer display name; fall back to email username without digits
+    const rawId = user.name || (user.email ? user.email.split("@")[0] : "USER");
+    const cleanId = rawId.replace(/[0-9]/g, "") || rawId;
+    userEmailElement.innerText = cleanId.toUpperCase();
   }
 
-  // Lock Session
-  try {
-    localStorage.setItem("jarvis_last_session", JSON.stringify(user));
-  } catch (error) {
-    console.error("Failed to save session:", error);
-  }
-
-  addMessage("jarvis", "Neural link active. Systems fully operational.");
+  addMessage("nova", "Neural link active. Systems fully operational.");
 }
 
 function handleLogout() {
   try {
-    localStorage.removeItem("jarvis_last_session");
+    pywebview.api.logout();
   } catch (error) {
-    console.error("Failed to clear session:", error);
+    console.error("Logout error:", error);
   }
 
   location.reload();
@@ -185,14 +208,12 @@ function handleLogout() {
 
 function saveRecentLogin(email) {
   try {
-    let recent = JSON.parse(
-      localStorage.getItem("jarvis_recent_logins") || "[]",
-    );
+    let recent = JSON.parse(localStorage.getItem("nova_recent_logins") || "[]");
 
     if (!recent.includes(email)) {
       recent.unshift(email);
       recent = recent.slice(0, 3); // Keep only last 3
-      localStorage.setItem("jarvis_recent_logins", JSON.stringify(recent));
+      localStorage.setItem("nova_recent_logins", JSON.stringify(recent));
     }
   } catch (error) {
     console.error("Failed to save recent login:", error);
@@ -202,7 +223,7 @@ function saveRecentLogin(email) {
 function loadRecentLogins() {
   try {
     const recent = JSON.parse(
-      localStorage.getItem("jarvis_recent_logins") || "[]",
+      localStorage.getItem("nova_recent_logins") || "[]",
     );
     const container = document.getElementById("recent-logins-container");
     const list = document.getElementById("recent-logins-list");
@@ -262,64 +283,84 @@ function addMessage(role, text) {
 let isListening = false;
 
 async function toggleListening() {
-  if (isListening) {
-    console.log("Already listening, ignoring request");
-    return;
-  }
+  if (isListening) return;
 
   isListening = true;
-
   const btn = document.getElementById("mic-btn");
   const core = document.getElementById("visualizer-core");
   const status = document.getElementById("status-text");
 
-  if (btn) btn.classList.add("active");
-  if (core) core.style.transform = "translate(-50%, -50%) scale(1.3)";
-  if (status) status.innerText = "LISTENING...";
-
   try {
+    // Show listening state
+    if (btn) btn.classList.add("active");
+    if (core) core.style.transform = "translate(-50%, -50%) scale(1.3)";
+    if (status) status.innerText = "🎤 LISTENING... Speak your command";
+
+    // After a short delay, assume we've stopped recording and are processing
+    let processingTimer = null;
+    if (status) {
+      processingTimer = setTimeout(() => {
+        if (status && isListening) {
+          status.innerText = "⚙️ PROCESSING VOICE INPUT...";
+        }
+      }, 1200);
+    }
+
     const result = await pywebview.api.start_voice_session();
 
-    if (result) {
-      if (result.scanning) {
-        if (status) status.innerText = "CALIBRATING...";
+    if (processingTimer) {
+      clearTimeout(processingTimer);
+    }
 
-        setTimeout(() => {
-          if (status) status.innerText = "SYSTEM READY";
-          resetMic();
-        }, 4000);
-      } else if (result.user_input) {
+    if (!result) {
+      if (status) status.innerText = "SYSTEM STANDBY";
+      resetMic();
+      return;
+    }
+
+    // Handle different statuses in a user-friendly, real-time way
+    if (result.status === "calibrating") {
+      if (status) status.innerText = "⚙️ CALIBRATING AUDIO LINK...";
+      setTimeout(() => {
+        if (status) status.innerText = "SYSTEM READY";
+        resetMic();
+      }, 3000);
+    } else if (result.status === "responding") {
+      // Listening has finished, now we're sending to the agent
+      if (status) status.innerText = "⚙️ PROCESSING VOICE INPUT...";
+
+      // Show what the user said
+      if (result.user_input) {
         addMessage("user", result.user_input);
-        addMessage("jarvis", result.ai_response);
-
-        if (status) status.innerText = "RESPONDING...";
-
-        setTimeout(() => {
-          if (status) status.innerText = "SYSTEM STANDBY";
-        }, 2000);
-      } else {
-        if (status) status.innerText = "NO INPUT DETECTED";
-
-        setTimeout(() => {
-          if (status) status.innerText = "SYSTEM STANDBY";
-        }, 2000);
       }
-    } else {
-      if (status) status.innerText = "READY FOR INPUT";
+
+      // Then show agent speaking back
+      setTimeout(() => {
+        if (status) status.innerText = "💬 RESPONDING...";
+        addMessage("nova", result.ai_response);
+
+        setTimeout(() => {
+          if (status) status.innerText = "SYSTEM STANDBY";
+        }, 800);
+      }, 300);
+    } else if (result.status === "idle") {
+      if (status) status.innerText = "NO VOICE DETECTED";
+      setTimeout(() => {
+        if (status) status.innerText = "SYSTEM STANDBY";
+      }, 1500);
+    } else if (result.status === "error") {
+      if (status) status.innerText = "❌ SYSTEM ERROR";
+      addMessage("nova", "A system error occurred while processing your command.");
+      setTimeout(() => {
+        if (status) status.innerText = "SYSTEM STANDBY";
+      }, 2000);
     }
   } catch (error) {
     console.error("Voice session error:", error);
-
-    if (status) status.innerText = "SYSTEM ERROR";
-
-    addMessage(
-      "jarvis",
-      "I encountered an error. Please check the console for details.",
-    );
-
+    if (status) status.innerText = "❌ SYSTEM ERROR";
     setTimeout(() => {
       if (status) status.innerText = "SYSTEM STANDBY";
-    }, 3000);
+    }, 2000);
   } finally {
     resetMic();
   }
@@ -335,7 +376,7 @@ function resetMic() {
   if (btn) btn.classList.remove("active");
   if (core) core.style.transform = "translate(-50%, -50%) scale(1)";
 
-  if (status && status.innerText === "LISTENING...") {
+  if (status && status.innerText.includes("LISTENING")) {
     status.innerText = "SYSTEM STANDBY";
   }
 }
@@ -343,35 +384,17 @@ function resetMic() {
 // --- Initialization ---
 
 window.onload = async () => {
-  console.log("JARVIS UI Loading...");
+  console.log("NOVA UI Loading...");
 
   loadRecentLogins();
 
   try {
-    const saved = localStorage.getItem("jarvis_last_session");
+    // Check for saved session from backend
+    const session = await pywebview.api.get_session();
 
-    if (saved) {
-      const user = JSON.parse(saved);
-
-      console.log("Attempting session restore for:", user.email);
-
-      try {
-        const check = await pywebview.api.verify_session(
-          user.user_id,
-          user.email,
-        );
-
-        if (check.success) {
-          console.log("Session restored successfully");
-          onAuthSuccess(user);
-        } else {
-          console.log("Session verification failed");
-          localStorage.removeItem("jarvis_last_session");
-        }
-      } catch (error) {
-        console.error("Session verification error:", error);
-        localStorage.removeItem("jarvis_last_session");
-      }
+    if (session && session.success) {
+      console.log("Auto-login with saved session:", session.email);
+      onAuthSuccess(session);
     } else {
       console.log("No saved session found");
     }
@@ -379,7 +402,7 @@ window.onload = async () => {
     console.error("Session restore error:", error);
   }
 
-  console.log("JARVIS UI Ready");
+  console.log("NOVA UI Ready");
 };
 
 // Error handler for unhandled promise rejections
@@ -397,40 +420,40 @@ window.addEventListener("unhandledrejection", (event) => {
 
 // --- Text Input Alternative ---
 function handleTextInput(event) {
-  if (event.key === 'Enter') {
+  if (event.key === "Enter") {
     event.preventDefault();
     sendTextCommand();
   }
 }
 
 async function sendTextCommand() {
-  const input = document.getElementById('text-input');
+  const input = document.getElementById("text-input");
   const text = input.value.trim();
-  
+
   if (!text) return;
-  
+
   // Clear input
-  input.value = '';
-  
+  input.value = "";
+
   // Add to chat
-  addMessage(text, 'user');
-  
+  addMessage("user", text);
+
   try {
-    const response = await fetch('/api/text_query', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text })
+    const response = await fetch("/api/text_query", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text }),
     });
-    
+
     const data = await response.json();
-    
+
     if (data && data.ai_response) {
-      addMessage(data.ai_response, 'assistant');
+      addMessage("nova", data.ai_response);
     } else {
-      addMessage('No response from JARVIS', 'system');
+      addMessage("nova", "No response from NOVA");
     }
   } catch (error) {
-    console.error('Text command error:', error);
-    addMessage('Error sending command', 'system');
+    console.error("Text command error:", error);
+    addMessage("nova", "Error sending command");
   }
 }

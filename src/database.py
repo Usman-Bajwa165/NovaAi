@@ -1,4 +1,4 @@
-"""Database module for JARVIS application."""
+"""Database module for NOVA application."""
 
 import os
 import sqlite3
@@ -28,7 +28,7 @@ def init_db():
         logger.info("Initializing database...")
 
         with get_db() as conn:
-            # User table
+            # User table (base schema)
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS users (
@@ -39,6 +39,13 @@ def init_db():
                 )
             """
             )
+
+            # Ensure optional name column exists for personalized greetings
+            try:
+                conn.execute("ALTER TABLE users ADD COLUMN name TEXT")
+            except sqlite3.OperationalError:
+                # Column already exists; safe to ignore
+                pass
 
             # Memory table (Conversation context)
             conn.execute(

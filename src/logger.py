@@ -1,4 +1,4 @@
-"""Logger module for JARVIS application."""
+"""Logger module for NOVA application."""
 
 import logging
 import os
@@ -10,10 +10,10 @@ LOG_DIR = os.path.join(os.path.dirname(__file__), "..", "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 
 # Log file path with timestamp
-LOG_FILE = os.path.join(LOG_DIR, f"jarvis_{datetime.now().strftime('%Y%m%d')}.log")
+LOG_FILE = os.path.join(LOG_DIR, f"nova_{datetime.now().strftime('%Y%m%d')}.log")
 
 
-def setup_logger(name="JARVIS", level=logging.DEBUG):
+def setup_logger(name="NOVA", level=logging.DEBUG):
     """
     Setup a logger with both file and console handlers.
 

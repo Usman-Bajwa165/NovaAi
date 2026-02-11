@@ -1,13 +1,13 @@
-# JARVIS - VoiceAi Agent 🤖
+# NOVA - VoiceAi Agent 🤖
 
-A premium, JARVIS-inspired AI voice agent that listens, learns, and acts. Built with Python 3.13.5 and a modern glowing web interface.
+A premium, NOVA-inspired AI voice agent that listens, learns, and acts. Built with Python 3.13.5 and a modern glowing web interface.
 
 ## ✨ Core Features
 
 ### 🎙️ Advanced Voice Intelligence
 
 - **Voice-to-Voice Loop**: Real-time speech recognition (STT) and professional neural voice synthesis (TTS) using Edge-TTS.
-- **Continuous Learning**: Stores every interaction in a local SQLite memory system, allowing JARVIS to recall past context and "learn" about you.
+- **Continuous Learning**: Stores every interaction in a local SQLite memory system, allowing NOVA to recall past context and "learn" about you.
 - **Intent Recognition**: Powered by Google Gemini 1.5 Flash for witty, intelligent, and context-aware responses.
 
 ### 🛡️ Secure User System
@@ -18,7 +18,7 @@ A premium, JARVIS-inspired AI voice agent that listens, learns, and acts. Built 
 
 ### ⚡ System Actions (The "Acts")
 
-JARVIS doesn't just talk; he takes action. You can command him to:
+NOVA doesn't just talk; he takes action. You can command him to:
 
 - "Open Chrome"
 - "Launch Notepad"
@@ -29,7 +29,7 @@ JARVIS doesn't just talk; he takes action. You can command him to:
 ### 💎 Professional UI/UX
 
 - **Futuristic Aesthetic**: Glassmorphism, glowing visualizer, and rotating HUD elements.
-- **Live Status**: Real-time synchronization between what JARVIS is doing (Listening, Analyzing, Acting) and the UI.
+- **Live Status**: Real-time synchronization between what NOVA is doing (Listening, Analyzing, Acting) and the UI.
 - **Integrated Chat**: Visual log of your conversation alongside the voice interaction.
 
 ---
@@ -72,8 +72,8 @@ python main.py
 
 ## 🛠️ Commands for Testing
 
-- **Greeting**: "Hello Jarvis, how are you today?"
-- **Action**: "Jarvis, please open Chrome for me."
+- **Greeting**: "Hello Nova, how are you today?"
+- **Action**: "Nova, please open Chrome for me."
 - **Memory**: "My name is John. Remember that." (Then later ask: "What is my name?")
 - **System**: "Launch the calculator."
 

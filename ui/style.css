@@ -296,7 +296,7 @@ html {
   background: rgba(0, 255, 136, 0.05);
 }
 
-.jarvis-msg {
+.nova-msg {
   border-left-color: var(--primary-glow);
   background: rgba(0, 242, 255, 0.05);
 }
@@ -778,7 +778,11 @@ html {
 
 .send-text-btn {
   padding: 12px 30px;
-  background: linear-gradient(135deg, var(--primary-glow), var(--secondary-glow));
+  background: linear-gradient(
+    135deg,
+    var(--primary-glow),
+    var(--secondary-glow)
+  );
   border: none;
   border-radius: 8px;
   color: var(--bg-color);

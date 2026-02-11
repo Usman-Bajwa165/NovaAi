@@ -12,6 +12,9 @@ from threading import Lock
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), "..", "config.json")
 _TTS_LOCK = Lock()
 
+# Track speaking state so we can support safe interruption and diagnostics
+_IS_SPEAKING = False
+
 
 def load_dna_config():
     if os.path.exists(CONFIG_FILE):
@@ -30,8 +33,9 @@ def save_dna_config(config):
 
 def speak(text):
     """Reliable TTS using edge-tts. Non-crashing and cleans temp files."""
+    global _IS_SPEAKING
     try:
-        print(f">>> JARVIS: {text}")
+        print(f">>> NOVA: {text}")
         temp_file = f"tts_{int(time.time() * 1000)}.mp3"
         # Use lock so only one TTS subprocess plays at a time
         with _TTS_LOCK:
@@ -58,6 +62,7 @@ def speak(text):
                     return
 
             try:
+                _IS_SPEAKING = True
                 pygame.mixer.music.load(temp_file)
                 pygame.mixer.music.play()
                 while pygame.mixer.music.get_busy():
@@ -65,11 +70,14 @@ def speak(text):
                 pygame.mixer.music.unload()
             except Exception as e:
                 print(f"TTS playback error: {e}")
+            finally:
+                _IS_SPEAKING = False
     except subprocess.CalledProcessError as e:
         print(f"TTS generation error: {e}")
     except Exception as e:
         print(f"TTS Error: {e}")
     finally:
+        _IS_SPEAKING = False
         # Ensure cleanup of temp file
         try:
             if os.path.exists(temp_file):
@@ -79,49 +87,72 @@ def speak(text):
 
 
 def listen():
-    """Deterministic listening with ambient calibration and robust error handling."""
+    """Listen until user finishes speaking, then return the recognized text.
+
+    Behavior:
+    - Keeps listening while the user is speaking
+    - Treats ~1s of silence as the end of speech
+    - Times out after several seconds of *total* silence
+    """
     config = load_dna_config()
 
+    # First-run: perform a deep scan, then immediately continue to listening
     if "device_index" not in config:
-        return scan_for_neural_links()
+        scan_status = scan_for_neural_links()
+        # If scan failed, abort cleanly
+        if scan_status != "READY_STATUS":
+            return None
+        # Reload config written by scan_for_neural_links
+        config = load_dna_config()
+        if "device_index" not in config:
+            return None
 
     recognizer = sr.Recognizer()
     dev_idx = int(config.get("device_index"))
     rate = config.get("sample_rate", 16000)
 
+    # If we have a stored threshold from calibration, reuse it
+    stored_threshold = config.get("threshold")
+    if stored_threshold:
+        recognizer.energy_threshold = float(stored_threshold)
+        recognizer.dynamic_energy_threshold = False
+
     try:
         with sr.Microphone(device_index=dev_idx, sample_rate=rate) as source:
-            # Calibrate to ambient noise right before listening:
-            recognizer.adjust_for_ambient_noise(source, duration=1.0)
+            # Very short calibration so we don't eat the user's first words
+            recognizer.adjust_for_ambient_noise(source, duration=0.05)
+            # Wait for a clearly longer pause before ending speech
+            recognizer.pause_threshold = 2.0
+            recognizer.non_speaking_duration = 1.0
             recognizer.dynamic_energy_threshold = True
-            recognizer.pause_threshold = 0.6
-            recognizer.non_speaking_duration = 0.3
+            recognizer.phrase_threshold = 0.1
 
-            print(f">>> (DNA) 🎤 Listening on Index {dev_idx} (calibrated)")
+            print(f">>> (DNA) 🎤 Listening on device {dev_idx} @ {rate}Hz...")
             try:
-                audio = recognizer.listen(source, timeout=12, phrase_time_limit=20)
-                try:
-                    query = recognizer.recognize_google(audio)
-                    print(f">>> USER: {query}")
-                    return query
-                except sr.UnknownValueError:
-                    print(">>> (DNA) Sound detected but no speech recognized.")
-                    return None
-                except sr.RequestError as e:
-                    print(f">>> (DNA) STT request error: {e}")
-                    return None
+                # timeout: how long to wait for *any* speech
+                # phrase_time_limit: hard cap so it doesn't listen forever
+                audio = recognizer.listen(
+                    source, timeout=10, phrase_time_limit=30
+                )
+                query = recognizer.recognize_google(audio, language="en-US")
+                print(f">>> USER: {query}")
+                return query
+            except sr.UnknownValueError:
+                print(">>> (DNA) No recognizable speech detected.")
+                return None
+            except sr.RequestError as e:
+                print(f">>> (DNA) STT error: {e}")
+                return None
             except sr.WaitTimeoutError:
-                print(">>> (DNA) Timeout - no speech detected.")
+                print(">>> (DNA) Listening timeout – no speech detected.")
                 return None
     except (OSError, IOError) as e:
-        print(f">>> (DNA) Hardware Link Dropped on {dev_idx}: {e}")
-        # remove config and rescan once
-        try:
-            if os.path.exists(CONFIG_FILE):
-                os.remove(CONFIG_FILE)
-        except Exception:
-            pass
-        return scan_for_neural_links()
+        print(f">>> (DNA) Mic error: {e}")
+        # Reset config so next call will re-scan hardware
+        if os.path.exists(CONFIG_FILE):
+            os.remove(CONFIG_FILE)
+        scan_for_neural_links()
+        return None
 
 
 def scan_for_neural_links():
@@ -201,5 +232,39 @@ def scan_for_neural_links():
 
 
 def diagnostic_mic_test():
-    """Placeholder for microphone diagnostic test."""
-    pass
+    """Simple CLI diagnostic for microphone configuration."""
+    print("=" * 60)
+    print("NOVA MICROPHONE DIAGNOSTIC")
+    print("=" * 60)
+
+    config = load_dna_config()
+    if config:
+        print(f"Existing config: {config}")
+    else:
+        print("No existing mic configuration found.")
+
+    result = scan_for_neural_links()
+    if result == "READY_STATUS":
+        new_config = load_dna_config()
+        print(f"\n✅ Scan succeeded. Active configuration: {new_config}")
+    else:
+        print("\n❌ Scan failed. No suitable microphone detected.")
+
+
+def is_speaking():
+    """Return True if NOVA is currently speaking via TTS."""
+    return _IS_SPEAKING and pygame.mixer.get_init() and pygame.mixer.music.get_busy()
+
+
+def interrupt_speech():
+    """Attempt to immediately stop any ongoing TTS playback."""
+    global _IS_SPEAKING
+    try:
+        if pygame.mixer.get_init():
+            pygame.mixer.music.stop()
+            pygame.mixer.music.unload()
+    except Exception:
+        # Best-effort interruption; avoid crashing the app
+        pass
+    finally:
+        _IS_SPEAKING = False

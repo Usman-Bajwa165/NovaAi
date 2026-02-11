@@ -1,95 +1,37 @@
-"""AI engine module for Jarvis-style reasoning and actions."""
+"""AI engine module using Ollama for local response generation."""
 
 import os
 import re
+import datetime
 from dotenv import load_dotenv
-from openai import OpenAI, RateLimitError, APIError
 from src.database import get_db
 from src.actions import execute_system_command
 from src.logger import logger
 
 load_dotenv()
 
-# -----------------
-# OpenAI primary
-# -----------------
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-openai_client = None
-if OPENAI_API_KEY:
-    try:
-        openai_client = OpenAI(api_key=OPENAI_API_KEY)
-        logger.info("OpenAI client initialized successfully")
-    except APIError:
-        logger.error("Failed to initialize OpenAI client", exc_info=True)
-else:
-    logger.warning("OPENAI_API_KEY not found in environment variables")
-
-# -----------------
-# Gemini fallback initialization (try new google.genai then legacy google.generativeai)
-# -----------------
-GEMINI_AVAILABLE = False
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-mini")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
-genai = None
-_genai_type = None  # "new" for google.genai, "legacy" for google.generativeai
-
-if GEMINI_API_KEY:
-    try:
-        # Try the new package first
-        import google.genai as genai_new  # type: ignore
-
-        genai = genai_new
-        _genai_type = "new"
-        # Some new clients need explicit client creation; we'll try configuring below if needed
-        # (we won't crash here; actual call logic will adapt)
-        GEMINI_AVAILABLE = True
-        logger.info("Detected google.genai (new) package for Gemini fallback")
-    except Exception:
-        try:
-            # Fallback to legacy package if available
-            import google.generativeai as genai_legacy  # type: ignore
-
-            genai = genai_legacy
-            _genai_type = "legacy"
-            # The legacy package typically uses genai.configure(api_key=...)
-            try:
-                genai.configure(api_key=GEMINI_API_KEY)
-                GEMINI_AVAILABLE = True
-                logger.info(
-                    "Detected legacy google.generativeai package and configured it"
-                )
-            except Exception:
-                GEMINI_AVAILABLE = False
-                logger.warning(
-                    "Legacy google.generativeai present but configuration failed",
-                    exc_info=True,
-                )
-        except Exception:
-            GEMINI_AVAILABLE = False
-            logger.info(
-                "No google.genai / google.generativeai package available for Gemini fallback"
-            )
-else:
-    logger.info("GEMINI_API_KEY not set; skipping Gemini fallback setup")
-
-# -----------------
-# Prompts & regex
-# -----------------
+# --- Prompting & Regex ---
 SYSTEM_PROMPT = (
-    "You are JARVIS, a professional, intelligent, and loyal AI voice agent. "
-    "You respond concisely because your responses are spoken aloud. "
-    "You understand user context and remember previous conversations.\n\n"
-    "ACTIONS:\nIf the user asks to perform a system action, include a tag exactly like: [ACTION:open_app:chrome]\n"
+    "You are NOVA. Respond in ONE short, clear sentence only. "
+    "You are developed by Usman Bajwa and must be professional, polite, and very obedient. "
+    "You carefully read the latest user message and focus on their current request, "
+    "even if it is a new topic. Do not force the conversation to stay on previous topics. "
+    "You control the local machine using special ACTION tags. "
+    "To open an app use: [ACTION:open_app:app_name]. "
+    "To search the web use: [ACTION:search:query]. "
+    "Queries with multiple words (e.g. 'pak army') should be passed exactly as the user said. "
+    "If user wants to uninstall, use: [ACTION:uninstall:app_name]. "
+    "If user wants to install, use: [ACTION:install:app_name]. "
+    "If user wants to open website, use: [ACTION:open_website:website_name]. "
+    "Always be direct, helpful, humble and super polite, with no unnecessary small talk."
 )
 
 _ACTION_RE = re.compile(r"\[ACTION:([a-zA-Z0-9_]+):([^\]]+)\]")
+_LOCAL_OPEN_RE = re.compile(r"^(?:open|launch|start)\s+(.+)$", re.IGNORECASE)
 
 
-# -----------------
-# Memory helpers
-# -----------------
-def get_memory(user_id, limit=5):
+# --- Memory Logic ---
+def get_memory(user_id, limit=3):
     try:
         with get_db() as conn:
             rows = conn.execute(
@@ -97,8 +39,8 @@ def get_memory(user_id, limit=5):
                 (user_id, limit),
             ).fetchall()
         return [{"role": r["role"], "content": r["content"]} for r in reversed(rows)]
-    except Exception:
-        logger.error("Memory fetch failed", exc_info=True)
+    except Exception as e:
+        logger.error(f"Memory fetch failed: {e}")
         return []
 
 
@@ -110,312 +52,104 @@ def save_memory(user_id, role, content):
                 (user_id, role, content),
             )
             conn.commit()
-        prune_memory(user_id, keep_last=200)
-    except Exception:
-        logger.error("Memory save failed", exc_info=True)
+    except Exception as e:
+        logger.error(f"Memory save failed: {e}")
 
 
-def prune_memory(user_id, keep_last=200):
-    try:
-        with get_db() as conn:
-            conn.execute(
-                """
-                DELETE FROM memory
-                WHERE id NOT IN (
-                  SELECT id FROM memory
-                  WHERE user_id = ?
-                  ORDER BY timestamp DESC
-                  LIMIT ?
-                ) AND user_id = ?
-                """,
-                (user_id, keep_last, user_id),
+# --- Local Command Bypass ---
+def try_local_logic(user_input):
+    raw = user_input.strip()
+    cmd = raw.lower()
+
+    # Combined intent: "open chrome and search pak army"
+    if "open chrome" in cmd and "search" in cmd:
+        try:
+            # Everything after the word "search" is treated as the query
+            after_search = cmd.split("search", 1)[1].strip()
+            search_query = after_search or raw  # fall back to original text
+            # Open Chrome (or default browser) and search each term in separate tabs
+            success, msg = execute_system_command("search", search_query)
+            text = (
+                f"I am opening Chrome and searching for {search_query}."
+                if success
+                else "I tried to open Chrome search tabs but something failed."
             )
-            conn.commit()
-    except Exception:
-        logger.warning("Memory pruning issue", exc_info=True)
+            return True, text, {
+                "type": "search",
+                "target": search_query,
+                "success": success,
+            }
+        except Exception as e:
+            logger.error(f"Local chrome+search logic failed: {e}")
 
-
-# -----------------
-# Local simple command parser (works offline)
-# -----------------
-_OPEN_CMD_RE = re.compile(r"^(?:open|launch|start)\s+(.+)$", re.IGNORECASE)
-_TIME_RE = re.compile(r"\btime\b|\bwhat time\b", re.IGNORECASE)
-_DATE_RE = re.compile(r"\bdate\b|\btoday\b", re.IGNORECASE)
-
-
-def try_local_commands(user_input):
-    """Handle very simple local actions without LLM. Returns (handled_bool, result_text, action_dict|None)."""
-    if not isinstance(user_input, str):
-        return False, None, None
-
-    trimmed = user_input.strip()
-
-    # Open app pattern
-    m = _OPEN_CMD_RE.match(trimmed)
-    if m:
-        app_name = m.group(1).strip().lower()
+    # Simple "open X" app launching
+    match = _LOCAL_OPEN_RE.match(cmd)
+    if match:
+        app_name = match.group(1).strip()
         success, msg = execute_system_command("open_app", app_name)
-        text = (
-            f"Opening {app_name}." if success else f"I couldn't open {app_name}. {msg}"
-        )
-        action = {"type": "open_app", "target": app_name, "success": success}
-        return True, text, action
+        text = f"Opening {app_name}." if success else f"Cannot find {app_name}."
+        return True, text, {"type": "open_app", "target": app_name, "success": success}
 
-    # Time query
-    if _TIME_RE.search(trimmed):
-        import datetime
-
+    if any(word in cmd for word in ["time", "date", "today"]):
         now = datetime.datetime.now()
-        text = f"The time is {now.strftime('%I:%M %p')}."
-        return True, text, None
-
-    # Date query
-    if _DATE_RE.search(trimmed):
-        import datetime
-
-        today = datetime.date.today()
-        text = f"Today is {today.strftime('%A, %B %d, %Y')}."
+        text = f"It is {now.strftime('%I:%M %p')} on {now.strftime('%A, %B %d')}."
         return True, text, None
 
     return False, None, None
 
 
-# -----------------
-# Model callers
-# -----------------
-def _build_prompt_text(system_prompt, history, user_input):
-    parts = [f"SYSTEM: {system_prompt.strip()}"]
-    for h in history:
-        parts.append(f"{h.get('role','user').upper()}: {h.get('content','').strip()}")
-    parts.append(f"USER: {user_input.strip()}")
-    parts.append("JARVIS:")
-    return "\n".join(parts)
-
-
-def _call_openai(prompt_text):
-    if not openai_client:
-        raise RuntimeError("OpenAI client not configured")
+# --- Ollama Caller ---
+def _call_ollama(prompt):
     try:
-        resp = openai_client.responses.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-            input=prompt_text,
-            temperature=float(os.getenv("OPENAI_TEMPERATURE", "0.35")),
+        import ollama
+
+        logger.info("Calling Ollama...")
+        resp = ollama.generate(
+            model="llama3.2:1b",
+            prompt=prompt,
+            options={"temperature": 0.3, "num_predict": 50},
         )
-        # prefer output_text if available
-        if hasattr(resp, "output_text") and resp.output_text:
-            return str(resp.output_text).strip()
-        # else try to parse
-        try:
-            return str(resp.choices[0].message.content).strip()
-        except Exception:
-            return str(getattr(resp, "text", "")).strip()
-    except RateLimitError:
-        # re-raise to be handled by caller
-        logger.warning("OpenAI rate limit / quota error", exc_info=True)
-        raise
-    except APIError:
-        logger.error("OpenAI call error", exc_info=True)
-        raise
+        return resp["response"].strip()
+    except Exception as e:
+        logger.error(f"Ollama error: {e}")
+        return "I cannot respond right now."
 
 
-def _call_gemini(prompt_text):
-    """Call whichever genai module is available (new google.genai or legacy google.generativeai)."""
-    if not GEMINI_AVAILABLE or genai is None:
-        raise RuntimeError("Gemini client not available")
-    try:
-        # New google.genai (best-effort handling)
-        if _genai_type == "new":
-            try:
-                # some versions provide a Client class
-                if hasattr(genai, "Client"):
-                    client = genai.Client(api_key=GEMINI_API_KEY)
-                    # assume method generate_text or generate
-                    if hasattr(client, "generate_text"):
-                        resp = client.generate_text(
-                            model=GEMINI_MODEL, prompt=prompt_text
-                        )
-                        # try to extract text fields
-                        return (
-                            getattr(resp, "text", "")
-                            or getattr(resp, "output_text", "")
-                            or str(resp)
-                        )
-                    if hasattr(client, "generate"):
-                        resp = client.generate(model=GEMINI_MODEL, input=prompt_text)
-                        return getattr(resp, "text", "") or str(resp)
-                # fallback to top-level generate functions
-                if hasattr(genai, "generate_text"):
-                    resp = genai.generate_text(model=GEMINI_MODEL, prompt=prompt_text)
-                    return getattr(resp, "text", "") or str(resp)
-                if hasattr(genai, "generate"):
-                    resp = genai.generate(model=GEMINI_MODEL, input=prompt_text)
-                    # new API might put output in resp.output[0].content or similar
-                    return (
-                        getattr(resp, "text", "")
-                        or getattr(resp, "output_text", "")
-                        or str(resp)
-                    )
-            except Exception:
-                logger.info(
-                    "google.genai path failed, will try legacy if available",
-                    exc_info=True,
-                )
-
-        # Legacy google.generativeai interface (best-effort)
-        if _genai_type == "legacy":
-            if hasattr(genai, "GenerativeModel"):
-                model = genai.GenerativeModel(GEMINI_MODEL)
-                response = model.generate_content(prompt_text)
-                txt = getattr(response, "text", None) or getattr(
-                    response, "content", None
-                )
-                return (txt or "").strip()
-            # some legacy variants expose generate_text
-            if hasattr(genai, "generate_text"):
-                response = genai.generate_text(model=GEMINI_MODEL, prompt=prompt_text)
-                return getattr(response, "text", "") or str(response)
-
-        # If none of the above matched, raise
-        raise RuntimeError(
-            "No compatible Gemini call path available for installed genai package"
-        )
-    except Exception:
-        logger.error("Gemini call failed", exc_info=True)
-        raise
-
-
-# -----------------
-# Public API
-# -----------------
+# --- Main Interface ---
 def generate_response(user_id, user_input):
-    # Basic validation
     if not user_id:
-        return {"text": "Authentication error. Please log in again.", "action": None}
-    if not user_input or not isinstance(user_input, str):
-        return {"text": "I didn't catch that. Please repeat.", "action": None}
-    if len(user_input) > 2000:
-        return {"text": "Please keep your request shorter.", "action": None}
+        return {"text": "Authentication error.", "action": None}
 
-    # 1) Try local commands first (so offline actions work)
-    handled, local_text, local_action = try_local_commands(user_input)
+    # 1. Try Local Bypass First
+    handled, local_text, local_action = try_local_logic(user_input)
     if handled:
         save_memory(user_id, "user", user_input)
         save_memory(user_id, "assistant", local_text)
         return {"text": local_text, "action": local_action}
 
-    # 2) Build prompt
-    history = get_memory(user_id)
-    prompt_text = _build_prompt_text(SYSTEM_PROMPT, history, user_input)
+    # 2. Build Context (only last 1 turn so we don't get stuck on old topics)
+    history = get_memory(user_id, limit=1)
+    context = "\n".join([f"{h['role']}: {h['content']}" for h in history])
+    full_prompt = f"{SYSTEM_PROMPT}\n{context}\nUser: {user_input}\nNOVA:"
 
-    ai_text = None
+    # 3. Call Ollama
+    ai_text = _call_ollama(full_prompt)
 
-    # 3) Try OpenAI -> if RateLimitError or other failure, attempt Gemini if available
-    try:
-        ai_text = _call_openai(prompt_text)
-        logger.info("OpenAI responded successfully")
-    except RateLimitError:
-        logger.warning(
-            "OpenAI RateLimit/Quota hit. See OpenAI dashboard for usage and billing."
-        )
-        # Try Gemini next (if available)
-        if GEMINI_AVAILABLE:
-            try:
-                ai_text = _call_gemini(prompt_text)
-                logger.info(
-                    "Gemini fallback responded successfully (after OpenAI rate limit)"
-                )
-            except Exception:
-                logger.error(
-                    "Gemini fallback after OpenAI quota also failed", exc_info=True
-                )
-                return {
-                    "text": (
-                        "Both cloud intelligence engines are currently unavailable "
-                        "— please check OpenAI billing/quota and Gemini configuration. "
-                        "I can still perform simple local actions if you ask (e.g., 'open chrome')."
-                    ),
-                    "action": None,
-                }
-        else:
-            return {
-                "text": (
-                    "OpenAI quota exceeded. Please check your OpenAI account usage/billing. "
-                    "I can still perform simple local actions if you ask (e.g., 'open chrome')."
-                ),
-                "action": None,
-            }
-    except APIError:
-        logger.warning(
-            "OpenAI call failed, attempting Gemini (if available)", exc_info=True
-        )
-        if GEMINI_AVAILABLE:
-            try:
-                ai_text = _call_gemini(prompt_text)
-                logger.info(
-                    "Gemini fallback responded successfully (after OpenAI error)"
-                )
-            except Exception:
-                logger.error("Gemini fallback failed", exc_info=True)
-                return {
-                    "text": (
-                        "I couldn't reach my intelligence engines right now. "
-                        "Please check API keys/configuration. I can still perform simple local actions."
-                    ),
-                    "action": None,
-                }
-        else:
-            return {
-                "text": (
-                    "My intelligence core is offline. Please check your API configuration."
-                ),
-                "action": None,
-            }
+    # Stop if it starts generating fake conversation
+    if "user:" in ai_text.lower() or "assistant:" in ai_text.lower():
+        ai_text = ai_text.split("\n")[0].strip()
 
-    if not ai_text:
-        return {"text": "I couldn't generate a response. Try again.", "action": None}
-
-    # 4) Parse and execute action if present
-    action_match = _ACTION_RE.search(ai_text)
+    # 4. Action Parsing
     action_result = None
-    if action_match:
-        try:
-            action_type = action_match.group(1)
-            action_target = action_match.group(2).strip()
-            success, msg = execute_system_command(action_type, action_target)
-            ai_text = _ACTION_RE.sub("", ai_text).strip()
-            if not success:
-                ai_text = f"{ai_text} (Note: {msg})"
-            action_result = {
-                "type": action_type,
-                "target": action_target,
-                "success": success,
-            }
-            logger.info(
-                f"Action executed: {action_type}:{action_target} success={success}"
-            )
-        except Exception:
-            logger.exception("Action execution error")
+    match = _ACTION_RE.search(ai_text)
+    if match:
+        act_type, act_target = match.group(1), match.group(2).strip()
+        success, msg = execute_system_command(act_type, act_target)
+        ai_text = _ACTION_RE.sub("", ai_text).strip()
+        action_result = {"type": act_type, "target": act_target, "success": success}
+        if not success:
+            ai_text = f"I tried to {act_type} {act_target}, but it's not available."
 
-    # 5) Save memory
     save_memory(user_id, "user", user_input)
     save_memory(user_id, "assistant", ai_text)
-
     return {"text": ai_text, "action": action_result}
-
-
-def list_gemini_models():
-    """If a Gemini client is installed & configured, attempt to list available models."""
-    if not GEMINI_AVAILABLE or genai is None:
-        return []
-    try:
-        # try new client listing
-        if _genai_type == "new" and hasattr(genai, "Client"):
-            client = genai.Client(api_key=GEMINI_API_KEY)
-            if hasattr(client, "list_models"):
-                return client.list_models()
-        # legacy listing
-        if _genai_type == "legacy" and hasattr(genai, "list_models"):
-            return genai.list_models()
-    except Exception:
-        logger.error("Failed to list Gemini models", exc_info=True)
-    return []

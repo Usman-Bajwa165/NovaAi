@@ -78,7 +78,7 @@ def test_raw_audio():
     print("  → Your microphone is picking up background noise")
     print("  → Possible causes:")
     print("     1. Computer fan noise")
-    print("     2. JARVIS speaking through speakers (feedback loop)")
+    print("     2. NOVA speaking through speakers (feedback loop)")
     print("     3. Keyboard/mouse sounds")
     print("     4. Room noise (AC, traffic, etc.)")
     print("     5. Microphone too sensitive (needs Windows adjustment)")

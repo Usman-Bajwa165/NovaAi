@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>JARVIS 2.0 - NEURAL INTERFACE</title>
+    <title>NOVA 2.0 - NEURAL INTERFACE</title>
     <link rel="stylesheet" href="style.css" />
     <link
       href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400&display=swap"
@@ -21,7 +21,7 @@
 
         <div class="hub-content">
           <div class="branding">
-            <h1 class="glitch" data-text="JARVIS 2.0">JARVIS 2.0</h1>
+            <h1 class="glitch" data-text="NOVA 2.0">NOVA 2.0</h1>
             <div class="system-tag">NEURAL INTERFACE | v4.2.5</div>
           </div>
 
@@ -90,6 +90,12 @@
             </div>
 
             <div id="signup-form" style="display: none">
+              <input
+                type="text"
+                id="signup-name"
+                placeholder="DISPLAY NAME"
+                onkeydown="handleKey(event, 'signup-email')"
+              />
               <input
                 type="email"
                 id="signup-email"

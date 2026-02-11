@@ -42,12 +42,15 @@ def verify_password(password: str, hashed_password: str) -> bool:
         return False
 
 
-def signup_user(email: str, password: str):
+def signup_user(name: str, email: str, password: str):
     """Create a new user account."""
     # Input validation
-    if not email or not password:
-        logger.warning("Signup attempted with empty email or password")
-        return {"success": False, "message": "Email and password are required."}
+    if not name or not email or not password:
+        logger.warning("Signup attempted with empty name, email or password")
+        return {
+            "success": False,
+            "message": "Name, email and password are all required.",
+        }
 
     # Email validation
     if not is_valid_email(email):
@@ -75,8 +78,8 @@ def signup_user(email: str, password: str):
 
         with get_db() as conn:
             conn.execute(
-                "INSERT INTO users (email, password_hash) VALUES (?, ?)",
-                (email, hashed),
+                "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
+                (name.strip(), email, hashed),
             )
             conn.commit()
 
@@ -117,7 +120,12 @@ def login_user(email: str, password: str):
 
         if user and verify_password(password, user["password_hash"]):
             logger.info(f"Login successful: {email}")
-            return {"success": True, "user_id": user["id"], "email": user["email"]}
+            return {
+                "success": True,
+                "user_id": user["id"],
+                "email": user["email"],
+                "name": user["name"] if "name" in user.keys() else None,
+            }
         else:
             if not user:
                 logger.warning(f"Login failed - user not found: {email}")

@@ -1,7 +1,8 @@
-"""Main application entry point for JARVIS."""
+"""Main application entry point for NOVA."""
 
 import os
 import sys
+import json
 import threading
 import webview
 from dotenv import load_dotenv
@@ -11,6 +12,8 @@ from src.voice_engine import listen, speak
 
 load_dotenv()
 
+SESSION_FILE = os.path.join(os.path.dirname(__file__), "session.json")
+
 
 class API:
     """API class for handling frontend-backend communication."""
@@ -18,7 +21,51 @@ class API:
     def __init__(self):
         self.user_id = None
         self.email = None
+        self.name = None
         self.is_scanning = False
+        self._load_session()
+
+    def _load_session(self):
+        """Load saved session on startup."""
+        if os.path.exists(SESSION_FILE):
+            try:
+                with open(SESSION_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self.user_id = data.get("user_id")
+                    self.email = data.get("email")
+                    self.name = data.get("name")
+            except Exception:
+                pass
+
+    def _save_session(self):
+        """Save session to file."""
+        try:
+            with open(SESSION_FILE, "w", encoding="utf-8") as f:
+                json.dump(
+                    {"user_id": self.user_id, "email": self.email, "name": self.name},
+                    f,
+                )
+        except Exception:
+            pass
+
+    def _clear_session(self):
+        """Clear saved session."""
+        try:
+            if os.path.exists(SESSION_FILE):
+                os.remove(SESSION_FILE)
+        except Exception:
+            pass
+
+    def get_session(self):
+        """Return current session for auto-login."""
+        if self.user_id and self.email:
+            return {
+                "success": True,
+                "user_id": self.user_id,
+                "email": self.email,
+                "name": self.name,
+            }
+        return {"success": False}
 
     def login(self, email, password):
         """Handle user login."""
@@ -27,23 +74,35 @@ class API:
             if res["success"]:
                 self.user_id = res["user_id"]
                 self.email = res["email"]
-                # Greet user
+                self.name = res.get("name")
+                self._save_session()
+
+                # Choose a friendly display name (prefer stored name, otherwise email without digits)
+                raw_id = self.name or self.email.split("@")[0]
+                clean_id = "".join(ch for ch in raw_id if not ch.isdigit())
+                clean_id = clean_id or raw_id
+
                 threading.Thread(
                     target=speak,
-                    args=(
-                        f"Authorization confirmed. Welcome back, {self.email.split('@')[0]}",
-                    ),
+                    args=(f"Authorization confirmed. Welcome back, {clean_id}",),
                 ).start()
             return res
         except (ValueError, TypeError, KeyError) as e:
             return {"success": False, "message": f"Encryption Error: {str(e)}"}
 
-    def signup(self, email, password):
+    def signup(self, name, email, password):
         """Handle user signup."""
         try:
-            return signup_user(email, password)
+            return signup_user(name, email, password)
         except (ValueError, TypeError, KeyError) as e:
             return {"success": False, "message": f"Encryption Error: {str(e)}"}
+
+    def logout(self):
+        """Handle user logout and clear session."""
+        self.user_id = None
+        self.email = None
+        self._clear_session()
+        return {"success": True}
 
     def verify_session(self, user_id, email):
         """Verify user session."""
@@ -67,29 +126,37 @@ class API:
         """Start a voice interaction session."""
         try:
             if not self.user_id:
-                return None
+                return {"status": "error", "message": "Not authenticated"}
+
+            # Return listening status
+            result = {"status": "listening"}
 
             user_input = listen()
 
             if user_input == "READY_STATUS":
-                return {"scanning": True}
+                return {"status": "calibrating"}
 
             if user_input:
-                result = generate_response(self.user_id, user_input)
-                ai_response = result["text"]
-                action = result["action"]
+                result = {"status": "thinking", "user_input": user_input}
 
-                threading.Thread(target=speak, args=(ai_response,)).start()
+                ai_result = generate_response(self.user_id, user_input)
+                ai_response = ai_result["text"]
+                action = ai_result["action"]
 
-                return {
+                result = {
+                    "status": "responding",
                     "user_input": user_input,
                     "ai_response": ai_response,
                     "action": action,
                 }
-            return None
-        except (ValueError, TypeError, KeyError) as e:
+
+                threading.Thread(target=speak, args=(ai_response,)).start()
+                return result
+
+            return {"status": "idle"}
+        except Exception as e:
             print(f"Voice Session Error: {e}")
-            return None
+            return {"status": "error", "message": str(e)}
 
 
 def start_reloader():
@@ -132,7 +199,7 @@ def start_app():
     threading.Thread(target=start_reloader, daemon=True).start()
 
     webview.create_window(
-        "JARVIS - Neural Voice Interface",
+        "NOVA - Neural Voice Interface",
         url=ui_path,
         js_api=api,
         width=1100,
