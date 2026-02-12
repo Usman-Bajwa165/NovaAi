@@ -291,26 +291,12 @@ async function toggleListening() {
   const status = document.getElementById("status-text");
 
   try {
-    // Show listening state
+    // LISTENING
     if (btn) btn.classList.add("active");
     if (core) core.style.transform = "translate(-50%, -50%) scale(1.3)";
-    if (status) status.innerText = "🎤 LISTENING... Speak your command";
-
-    // After a short delay, assume we've stopped recording and are processing
-    let processingTimer = null;
-    if (status) {
-      processingTimer = setTimeout(() => {
-        if (status && isListening) {
-          status.innerText = "⚙️ PROCESSING VOICE INPUT...";
-        }
-      }, 1200);
-    }
+    if (status) status.innerText = "🎤 LISTENING...";
 
     const result = await pywebview.api.start_voice_session();
-
-    if (processingTimer) {
-      clearTimeout(processingTimer);
-    }
 
     if (!result) {
       if (status) status.innerText = "SYSTEM STANDBY";
@@ -318,53 +304,78 @@ async function toggleListening() {
       return;
     }
 
-    // Handle different statuses in a user-friendly, real-time way
-    if (result.status === "calibrating") {
-      if (status) status.innerText = "⚙️ CALIBRATING AUDIO LINK...";
-      setTimeout(() => {
-        if (status) status.innerText = "SYSTEM READY";
-        resetMic();
-      }, 3000);
-    } else if (result.status === "responding") {
-      // Listening has finished, now we're sending to the agent
-      if (status) status.innerText = "⚙️ PROCESSING VOICE INPUT...";
-
-      // Show what the user said
-      if (result.user_input) {
-        addMessage("user", result.user_input);
-      }
-
-      // Then show agent speaking back
-      setTimeout(() => {
-        if (status) status.innerText = "💬 RESPONDING...";
-        addMessage("nova", result.ai_response);
-
-        setTimeout(() => {
-          if (status) status.innerText = "SYSTEM STANDBY";
-        }, 800);
-      }, 300);
-    } else if (result.status === "idle") {
-      if (status) status.innerText = "NO VOICE DETECTED";
-      setTimeout(() => {
-        if (status) status.innerText = "SYSTEM STANDBY";
-      }, 1500);
-    } else if (result.status === "error") {
-      if (status) status.innerText = "❌ SYSTEM ERROR";
-      addMessage("nova", "A system error occurred while processing your command.");
-      setTimeout(() => {
-        if (status) status.innerText = "SYSTEM STANDBY";
-      }, 2000);
+    // Keep showing PROCESSING during TTS generation
+    if (result.status === "responding") {
+      if (status) status.innerText = "🧠 PROCESSING...";
+      // Wait for speech to complete (finishResponding will update status)
+      return;
     }
+
+    if (result.status === "calibrating") {
+      if (status) status.innerText = "⚙️ CALIBRATING...";
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    } else if (result.status === "idle") {
+      if (status) status.innerText = "NO INPUT";
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    } else if (result.status === "error") {
+      if (status) status.innerText = "❌ ERROR";
+      addMessage("nova", "System error occurred.");
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+
+    if (status) status.innerText = "SYSTEM STANDBY";
   } catch (error) {
     console.error("Voice session error:", error);
-    if (status) status.innerText = "❌ SYSTEM ERROR";
-    setTimeout(() => {
-      if (status) status.innerText = "SYSTEM STANDBY";
-    }, 2000);
+    if (status) status.innerText = "❌ ERROR";
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    if (status) status.innerText = "SYSTEM STANDBY";
   } finally {
     resetMic();
   }
 }
+
+// Status update from backend
+window.updateStatus = function(status, userInput) {
+  const statusEl = document.getElementById("status-text");
+  if (status === "processing") {
+    if (statusEl) statusEl.innerText = "🧠 PROCESSING...";
+    if (userInput) addMessage("user", userInput);
+  }
+};
+
+// Start responding phase
+window.startResponding = function() {
+  const statusEl = document.getElementById("status-text");
+  if (statusEl) statusEl.innerText = "💬 RESPONDING...";
+};
+
+// Finish responding phase
+window.finishResponding = function() {
+  const statusEl = document.getElementById("status-text");
+  if (statusEl) statusEl.innerText = "SYSTEM STANDBY";
+  resetMic();
+};
+
+// Word streaming from backend
+let currentStreamMsg = null;
+window.streamWord = function(word, index, total) {
+  if (index === 0) {
+    currentStreamMsg = document.createElement("div");
+    currentStreamMsg.className = "glass-bubble nova-msg";
+    const chatBox = document.getElementById("chat-box");
+    if (chatBox) chatBox.appendChild(currentStreamMsg);
+  }
+  
+  if (currentStreamMsg) {
+    currentStreamMsg.innerText += (index > 0 ? " " : "") + word;
+    const chatBox = document.getElementById("chat-box");
+    if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
+  }
+  
+  if (index === total - 1) {
+    currentStreamMsg = null;
+  }
+};
 
 function resetMic() {
   isListening = false;

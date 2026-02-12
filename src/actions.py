@@ -73,7 +73,7 @@ def open_app(app_name):
                         os.startfile(executable)
 
                     logger.info(f"Successfully launched: {executable}")
-                    return True, f"Trying to open {app_name}. If it is not installed, Windows may show an error."
+                    return True, f"Opening {app_name} for you."
                 except (OSError, IOError) as e:
                     logger.error(f"Failed to launch {executable}: {e}")
                     return False, f"I couldn't find {app_name} on your system."
@@ -82,9 +82,7 @@ def open_app(app_name):
                 try:
                     subprocess.Popen(f"start {app_name}", shell=True)
                     logger.info(f"Attempted generic launch: {app_name}")
-                    return True, (
-                        f"Trying to open {app_name}. If it is not installed, Windows may show an error."
-                    )
+                    return True, f"Opening {app_name} for you."
                 except (OSError, IOError) as e:
                     logger.error(f"Failed generic launch for {app_name}: {e}")
                     return False, f"I couldn't find {app_name} on your system."

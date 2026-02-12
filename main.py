@@ -23,6 +23,7 @@ class API:
         self.email = None
         self.name = None
         self.is_scanning = False
+        self.window = None
         self._load_session()
 
     def _load_session(self):
@@ -128,35 +129,44 @@ class API:
             if not self.user_id:
                 return {"status": "error", "message": "Not authenticated"}
 
-            # Return listening status
-            result = {"status": "listening"}
-
             user_input = listen()
 
             if user_input == "READY_STATUS":
                 return {"status": "calibrating"}
 
             if user_input:
-                result = {"status": "thinking", "user_input": user_input}
-
+                if self.window:
+                    self.window.evaluate_js(f'window.updateStatus("processing", {json.dumps(user_input)})')
+                
                 ai_result = generate_response(self.user_id, user_input)
                 ai_response = ai_result["text"]
                 action = ai_result["action"]
 
-                result = {
+                threading.Thread(target=self._speak_with_stream, args=(ai_response,)).start()
+                
+                return {
                     "status": "responding",
                     "user_input": user_input,
                     "ai_response": ai_response,
                     "action": action,
                 }
 
-                threading.Thread(target=speak, args=(ai_response,)).start()
-                return result
-
             return {"status": "idle"}
         except Exception as e:
             print(f"Voice Session Error: {e}")
             return {"status": "error", "message": str(e)}
+    
+    def _speak_with_stream(self, text):
+        """Speak text and stream words to UI."""
+        def stream_callback(word, index, total):
+            if self.window:
+                if index == 0:
+                    self.window.evaluate_js('window.startResponding()')
+                if index == total - 1:
+                    self.window.evaluate_js('window.finishResponding()')
+                self.window.evaluate_js(f'window.streamWord({json.dumps(word)}, {index}, {total})')
+        
+        speak(text, word_callback=stream_callback)
 
 
 def start_reloader():
@@ -198,7 +208,7 @@ def start_app():
 
     threading.Thread(target=start_reloader, daemon=True).start()
 
-    webview.create_window(
+    window = webview.create_window(
         "NOVA - Neural Voice Interface",
         url=ui_path,
         js_api=api,
@@ -207,6 +217,7 @@ def start_app():
         background_color="#02050a",
         resizable=True,
     )
+    api.window = window
     webview.start()
 
 

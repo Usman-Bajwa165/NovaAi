@@ -31,7 +31,7 @@ def save_dna_config(config):
         json.dump(config, f)
 
 
-def speak(text):
+def speak(text, word_callback=None):
     """Reliable TTS using edge-tts. Non-crashing and cleans temp files."""
     global _IS_SPEAKING
     try:
@@ -57,7 +57,6 @@ def speak(text):
                 try:
                     pygame.mixer.init()
                 except Exception:
-                    # If pygame fails to initialize, just print error and return
                     print("pygame init failed for TTS playback.")
                     return
 
@@ -65,6 +64,15 @@ def speak(text):
                 _IS_SPEAKING = True
                 pygame.mixer.music.load(temp_file)
                 pygame.mixer.music.play()
+                
+                # Stream words during playback
+                if word_callback:
+                    words = text.split()
+                    total = len(words)
+                    for i, word in enumerate(words):
+                        word_callback(word, i, total)
+                        time.sleep(0.15)  # Sync with speech pace
+                
                 while pygame.mixer.music.get_busy():
                     time.sleep(0.1)
                 pygame.mixer.music.unload()
@@ -121,7 +129,7 @@ def listen():
         with sr.Microphone(device_index=dev_idx, sample_rate=rate) as source:
             # Very short calibration so we don't eat the user's first words
             recognizer.adjust_for_ambient_noise(source, duration=0.05)
-            # Wait for a clearly longer pause before ending speech
+            # Wait for a clear pause (~2 seconds) before ending speech
             recognizer.pause_threshold = 2.0
             recognizer.non_speaking_duration = 1.0
             recognizer.dynamic_energy_threshold = True
@@ -132,7 +140,7 @@ def listen():
                 # timeout: how long to wait for *any* speech
                 # phrase_time_limit: hard cap so it doesn't listen forever
                 audio = recognizer.listen(
-                    source, timeout=10, phrase_time_limit=30
+                    source, timeout=8, phrase_time_limit=12
                 )
                 query = recognizer.recognize_google(audio, language="en-US")
                 print(f">>> USER: {query}")

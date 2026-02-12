@@ -2,7 +2,7 @@
 
 import os
 import sqlite3
-from .logger import logger
+from src.logger import logger
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "voice_ai.db")
 

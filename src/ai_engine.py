@@ -12,18 +12,18 @@ load_dotenv()
 
 # --- Prompting & Regex ---
 SYSTEM_PROMPT = (
-    "You are NOVA. Respond in ONE short, clear sentence only. "
-    "You are developed by Usman Bajwa and must be professional, polite, and very obedient. "
-    "You carefully read the latest user message and focus on their current request, "
-    "even if it is a new topic. Do not force the conversation to stay on previous topics. "
-    "You control the local machine using special ACTION tags. "
-    "To open an app use: [ACTION:open_app:app_name]. "
-    "To search the web use: [ACTION:search:query]. "
-    "Queries with multiple words (e.g. 'pak army') should be passed exactly as the user said. "
-    "If user wants to uninstall, use: [ACTION:uninstall:app_name]. "
-    "If user wants to install, use: [ACTION:install:app_name]. "
-    "If user wants to open website, use: [ACTION:open_website:website_name]. "
-    "Always be direct, helpful, humble and super polite, with no unnecessary small talk."
+    "You are NOVA, an intelligent AI assistant developed by Usman Bajwa. "
+    "You are professional, polite, helpful, and obedient. "
+    "You respond in ONE clear, concise sentence. "
+    "You focus on the user's CURRENT request and adapt to new topics naturally. "
+    "You control the computer using ACTION tags: "
+    "[ACTION:open_app:name] to open applications, "
+    "[ACTION:search:query] to search the web, "
+    "[ACTION:open_website:url] to open websites, "
+    "[ACTION:install:name] to help install apps, "
+    "[ACTION:uninstall:name] to help uninstall apps. "
+    "IMPORTANT: Only claim you performed an action if you actually used an ACTION tag. "
+    "Be direct, humble, and extremely helpful. No unnecessary talk."
 )
 
 _ACTION_RE = re.compile(r"\[ACTION:([a-zA-Z0-9_]+):([^\]]+)\]")
@@ -67,10 +67,9 @@ def try_local_logic(user_input):
             # Everything after the word "search" is treated as the query
             after_search = cmd.split("search", 1)[1].strip()
             search_query = after_search or raw  # fall back to original text
-            # Open Chrome (or default browser) and search each term in separate tabs
             success, msg = execute_system_command("search", search_query)
             text = (
-                f"I am opening Chrome and searching for {search_query}."
+                f"I am opening Chrome and searching for {search_query} in separate tabs."
                 if success
                 else "I tried to open Chrome search tabs but something failed."
             )
@@ -80,20 +79,66 @@ def try_local_logic(user_input):
                 "success": success,
             }
         except Exception as e:
-            logger.error(f"Local chrome+search logic failed: {e}")
+            logger.error("Local chrome+search logic failed: %s", e)
 
-    # Simple "open X" app launching
-    match = _LOCAL_OPEN_RE.match(cmd)
-    if match:
-        app_name = match.group(1).strip()
+    # General "search for X" handling anywhere in the sentence
+    search_match = re.search(r"\bsearch(?: for)?\s+(.+)", cmd)
+    if search_match:
+        search_query = search_match.group(1).strip()
+        success, msg = execute_system_command("search", search_query)
+        text = (
+            f"I am searching for {search_query} in your browser."
+            if success
+            else "I could not open the search results."
+        )
+        return True, text, {
+            "type": "search",
+            "target": search_query,
+            "success": success,
+        }
+
+    # Weather / temperature queries -> open browser weather info
+    if any(word in cmd for word in ["weather", "temperature"]):
+        location = None
+        if " in " in cmd:
+            # Use the part after 'in' from the original text to preserve casing
+            location = user_input.split(" in ", 1)[1].strip()
+        if not location:
+            location = "your location"
+        query = f"weather in {location}"
+        success, msg = execute_system_command("search", query)
+        text = (
+            f"I have opened the weather for {location} in your browser."
+            if success
+            else "I could not open the weather information."
+        )
+        return True, text, {
+            "type": "search",
+            "target": query,
+            "success": success,
+        }
+
+    # Simple "open X" app launching (match anywhere, take last occurrence)
+    open_matches = list(re.finditer(r"\b(?:open|launch|start)\s+([a-zA-Z0-9 ._-]+)", cmd))
+    if open_matches:
+        app_phrase = open_matches[-1].group(1).strip()
+        app_name = app_phrase.split(" and ")[0].strip()
         success, msg = execute_system_command("open_app", app_name)
-        text = f"Opening {app_name}." if success else f"Cannot find {app_name}."
-        return True, text, {"type": "open_app", "target": app_name, "success": success}
+        text = msg
+        return True, text, {
+            "type": "open_app",
+            "target": app_name,
+            "success": success,
+        }
 
-    if any(word in cmd for word in ["time", "date", "today"]):
-        now = datetime.datetime.now()
-        text = f"It is {now.strftime('%I:%M %p')} on {now.strftime('%A, %B %d')}."
-        return True, text, None
+    # Time/date shortcuts: only for short direct questions, not for long complaints
+    if any(word in cmd for word in ["time", "date", "today"]) and not any(
+        w in cmd for w in ["weather", "temperature"]
+    ):
+        if len(cmd.split()) <= 8:
+            now = datetime.datetime.now()
+            text = f"It is {now.strftime('%I:%M %p')} on {now.strftime('%A, %B %d')}."
+            return True, text, None
 
     return False, None, None
 
@@ -107,12 +152,17 @@ def _call_ollama(prompt):
         resp = ollama.generate(
             model="llama3.2:1b",
             prompt=prompt,
-            options={"temperature": 0.3, "num_predict": 50},
+            options={
+                "temperature": 0.4,
+                "num_predict": 60,
+                "top_p": 0.9,
+                "repeat_penalty": 1.2
+            },
         )
         return resp["response"].strip()
     except Exception as e:
         logger.error(f"Ollama error: {e}")
-        return "I cannot respond right now."
+        return "I apologize, but I cannot respond at the moment. Please try again."
 
 
 # --- Main Interface ---
@@ -127,17 +177,23 @@ def generate_response(user_id, user_input):
         save_memory(user_id, "assistant", local_text)
         return {"text": local_text, "action": local_action}
 
-    # 2. Build Context (only last 1 turn so we don't get stuck on old topics)
-    history = get_memory(user_id, limit=1)
+    # 2. Build Context (only last 2 messages for better context)
+    history = get_memory(user_id, limit=2)
     context = "\n".join([f"{h['role']}: {h['content']}" for h in history])
-    full_prompt = f"{SYSTEM_PROMPT}\n{context}\nUser: {user_input}\nNOVA:"
+    full_prompt = f"{SYSTEM_PROMPT}\n\nRecent context:\n{context}\n\nUser: {user_input}\nNOVA:"
 
     # 3. Call Ollama
     ai_text = _call_ollama(full_prompt)
 
-    # Stop if it starts generating fake conversation
-    if "user:" in ai_text.lower() or "assistant:" in ai_text.lower():
-        ai_text = ai_text.split("\n")[0].strip()
+    # Clean up response - remove any self-generated conversation
+    lines = ai_text.split("\n")
+    clean_lines = []
+    for line in lines:
+        line_lower = line.lower()
+        if any(x in line_lower for x in ["user:", "assistant:", "nova:", "human:"]):
+            break
+        clean_lines.append(line)
+    ai_text = " ".join(clean_lines).strip()
 
     # 4. Action Parsing
     action_result = None
