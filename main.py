@@ -136,14 +136,18 @@ class API:
 
             if user_input:
                 if self.window:
-                    self.window.evaluate_js(f'window.updateStatus("processing", {json.dumps(user_input)})')
-                
+                    self.window.evaluate_js(
+                        f'window.updateStatus("processing", {json.dumps(user_input)})'
+                    )
+
                 ai_result = generate_response(self.user_id, user_input)
                 ai_response = ai_result["text"]
                 action = ai_result["action"]
 
-                threading.Thread(target=self._speak_with_stream, args=(ai_response,)).start()
-                
+                threading.Thread(
+                    target=self._speak_with_stream, args=(ai_response,)
+                ).start()
+
                 return {
                     "status": "responding",
                     "user_input": user_input,
@@ -155,17 +159,20 @@ class API:
         except Exception as e:
             print(f"Voice Session Error: {e}")
             return {"status": "error", "message": str(e)}
-    
+
     def _speak_with_stream(self, text):
         """Speak text and stream words to UI."""
+
         def stream_callback(word, index, total):
             if self.window:
                 if index == 0:
-                    self.window.evaluate_js('window.startResponding()')
+                    self.window.evaluate_js("window.startResponding()")
                 if index == total - 1:
-                    self.window.evaluate_js('window.finishResponding()')
-                self.window.evaluate_js(f'window.streamWord({json.dumps(word)}, {index}, {total})')
-        
+                    self.window.evaluate_js("window.finishResponding()")
+                self.window.evaluate_js(
+                    f"window.streamWord({json.dumps(word)}, {index}, {total})"
+                )
+
         speak(text, word_callback=stream_callback)
 
 

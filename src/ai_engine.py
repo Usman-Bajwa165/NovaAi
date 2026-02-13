@@ -61,7 +61,6 @@ def try_local_logic(user_input):
     raw = user_input.strip()
     cmd = raw.lower()
 
-    # Combined intent: "open chrome and search pak army"
     if "open chrome" in cmd and "search" in cmd:
         try:
             # Everything after the word "search" is treated as the query
@@ -73,11 +72,15 @@ def try_local_logic(user_input):
                 if success
                 else "I tried to open Chrome search tabs but something failed."
             )
-            return True, text, {
-                "type": "search",
-                "target": search_query,
-                "success": success,
-            }
+            return (
+                True,
+                text,
+                {
+                    "type": "search",
+                    "target": search_query,
+                    "success": success,
+                },
+            )
         except Exception as e:
             logger.error("Local chrome+search logic failed: %s", e)
 
@@ -91,11 +94,15 @@ def try_local_logic(user_input):
             if success
             else "I could not open the search results."
         )
-        return True, text, {
-            "type": "search",
-            "target": search_query,
-            "success": success,
-        }
+        return (
+            True,
+            text,
+            {
+                "type": "search",
+                "target": search_query,
+                "success": success,
+            },
+        )
 
     # Weather / temperature queries -> open browser weather info
     if any(word in cmd for word in ["weather", "temperature"]):
@@ -112,24 +119,34 @@ def try_local_logic(user_input):
             if success
             else "I could not open the weather information."
         )
-        return True, text, {
-            "type": "search",
-            "target": query,
-            "success": success,
-        }
+        return (
+            True,
+            text,
+            {
+                "type": "search",
+                "target": query,
+                "success": success,
+            },
+        )
 
     # Simple "open X" app launching (match anywhere, take last occurrence)
-    open_matches = list(re.finditer(r"\b(?:open|launch|start)\s+([a-zA-Z0-9 ._-]+)", cmd))
+    open_matches = list(
+        re.finditer(r"\b(?:open|launch|start)\s+([a-zA-Z0-9 ._-]+)", cmd)
+    )
     if open_matches:
         app_phrase = open_matches[-1].group(1).strip()
         app_name = app_phrase.split(" and ")[0].strip()
         success, msg = execute_system_command("open_app", app_name)
         text = msg
-        return True, text, {
-            "type": "open_app",
-            "target": app_name,
-            "success": success,
-        }
+        return (
+            True,
+            text,
+            {
+                "type": "open_app",
+                "target": app_name,
+                "success": success,
+            },
+        )
 
     # Time/date shortcuts: only for short direct questions, not for long complaints
     if any(word in cmd for word in ["time", "date", "today"]) and not any(
@@ -156,7 +173,7 @@ def _call_ollama(prompt):
                 "temperature": 0.4,
                 "num_predict": 60,
                 "top_p": 0.9,
-                "repeat_penalty": 1.2
+                "repeat_penalty": 1.2,
             },
         )
         return resp["response"].strip()
@@ -180,7 +197,9 @@ def generate_response(user_id, user_input):
     # 2. Build Context (only last 2 messages for better context)
     history = get_memory(user_id, limit=2)
     context = "\n".join([f"{h['role']}: {h['content']}" for h in history])
-    full_prompt = f"{SYSTEM_PROMPT}\n\nRecent context:\n{context}\n\nUser: {user_input}\nNOVA:"
+    full_prompt = (
+        f"{SYSTEM_PROMPT}\n\nRecent context:\n{context}\n\nUser: {user_input}\nNOVA:"
+    )
 
     # 3. Call Ollama
     ai_text = _call_ollama(full_prompt)

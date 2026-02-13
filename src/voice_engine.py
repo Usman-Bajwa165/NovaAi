@@ -4,9 +4,10 @@ import os
 import json
 import time
 import subprocess
+from threading import Lock
 import speech_recognition as sr
 import pygame
-from threading import Lock
+import pyaudio
 
 # Configuration Persistence
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), "..", "config.json")
@@ -64,7 +65,7 @@ def speak(text, word_callback=None):
                 _IS_SPEAKING = True
                 pygame.mixer.music.load(temp_file)
                 pygame.mixer.music.play()
-                
+
                 # Stream words during playback
                 if word_callback:
                     words = text.split()
@@ -72,7 +73,7 @@ def speak(text, word_callback=None):
                     for i, word in enumerate(words):
                         word_callback(word, i, total)
                         time.sleep(0.15)  # Sync with speech pace
-                
+
                 while pygame.mixer.music.get_busy():
                     time.sleep(0.1)
                 pygame.mixer.music.unload()
@@ -139,9 +140,7 @@ def listen():
             try:
                 # timeout: how long to wait for *any* speech
                 # phrase_time_limit: hard cap so it doesn't listen forever
-                audio = recognizer.listen(
-                    source, timeout=8, phrase_time_limit=12
-                )
+                audio = recognizer.listen(source, timeout=8, phrase_time_limit=12)
                 query = recognizer.recognize_google(audio, language="en-US")
                 print(f">>> USER: {query}")
                 return query
@@ -176,7 +175,6 @@ def scan_for_neural_links():
     secondary_indices = []
 
     try:
-        import pyaudio
 
         p = pyaudio.PyAudio()
         for i in range(p.get_device_count()):
