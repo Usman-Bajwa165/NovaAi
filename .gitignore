@@ -155,6 +155,8 @@ cython_debug/
 voice_ai.db
 logs/
 .qodo/
+session.json
+config.json
 
 # OS Specific
 Thumbs.db
