@@ -1,14 +1,14 @@
-# NOVA - Professional AI Voice Agent 🤖
+# NOVA - Professional AI Voice Assistant 🤖
 
-A premium, locally-running AI voice assistant that listens, learns, and acts. Built with Python 3.13.5 and powered by Ollama for complete offline functionality.
+A premium, locally-running AI voice assistant that listens, learns, and acts. Built with Python 3.13+ and powered by Ollama for complete offline functionality.
 
-## ✨ Core Features
+## ✨ Key Features
 
 ### 🎙️ Advanced Voice Intelligence
 - **Voice-to-Voice Loop**: Real-time speech recognition (Google STT) and professional neural voice synthesis (Edge-TTS)
 - **Continuous Learning**: Stores every interaction in local SQLite memory for contextual conversations
 - **Intent Recognition**: Powered by Ollama (llama3.2:1b) for intelligent, context-aware responses
-- **100% Offline**: All AI processing happens locally on your machine
+- **100% Offline AI**: All AI processing happens locally on your machine
 
 ### 🛡️ Secure User System
 - **Authorized Access**: Secure login with email and password (bcrypt encrypted)
@@ -19,30 +19,30 @@ A premium, locally-running AI voice assistant that listens, learns, and acts. Bu
 ### ⚡ System Actions
 NOVA doesn't just talk; she takes action:
 - **Open Apps**: "Open Chrome", "Launch Calculator", "Start WhatsApp"
-- **Web Search**: "Search for Python tutorials", "Find best laptops 2024"
+- **Web Search**: "Search Python tutorials", "Find best laptops 2024"
 - **Weather**: "Tell me temperature in Bahawalpur Pakistan"
 - **Websites**: "Open YouTube", "Go to SoundCloud"
-- **App Management**: "Install Python", "Uninstall Chrome"
+- **Time/Date**: "What time is it", "What's today's date"
 
 ### 💎 Professional UI/UX
 - **Futuristic Design**: Glassmorphism, glowing visualizer, rotating HUD elements
-- **Live Status**: Real-time feedback (🎤 Listening, 🧠 Thinking, 💬 Responding)
-- **Integrated Chat**: Visual conversation log alongside voice interaction
+- **Live Status**: Real-time feedback (🎤 Listening, 🧠 Processing, 💬 Responding)
+- **Word Streaming**: Text appears as NOVA speaks (subtitle effect)
 - **Responsive**: Works on desktop and adapts to different screen sizes
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Quick Start
 
-### 1. Prerequisites
-- **Python 3.13.5** installed
+### Prerequisites
+- **Python 3.13+** installed
 - **Microphone**: Ensure your default system mic is active
 - **Ollama**: Download from [ollama.com](https://ollama.com/download)
 
-### 2. Installation
+### Installation
 
 ```bash
-# Clone or download the project
+# Navigate to project
 cd VoiceAi
 
 # Activate virtual environment
@@ -54,19 +54,8 @@ pip install -r requirements.txt
 
 # Pull Ollama model
 ollama pull llama3.2:1b
-```
 
-### 3. Configuration
-
-Create a `.env` file (optional - for Gemini fallback):
-```env
-GEMINI_API_KEY=your_key_here  # Optional
-OPENAI_API_KEY=your_key_here  # Optional
-```
-
-### 4. Launch
-
-```bash
+# Run NOVA
 python main.py
 ```
 
@@ -76,12 +65,12 @@ python main.py
 
 ### Voice Commands
 ```
-"Open Chrome"                          → Launches Google Chrome
-"Search for Python tutorials"         → Opens Google search
-"Tell me weather in London"           → Opens weather info
-"What time is it"                     → Tells current time
-"Open YouTube"                        → Opens youtube.com
-"Install VS Code"                     → Opens download page
+"Open Chrome"                    → Launches Google Chrome
+"Search Python tutorials"        → Opens Google search
+"Tell me weather in London"      → Opens weather info
+"What time is it"                → Tells current time
+"Open YouTube"                   → Opens youtube.com
+"Who are you"                    → NOVA introduces herself
 ```
 
 ### Keyboard Shortcuts
@@ -94,7 +83,7 @@ python main.py
 
 ### Tech Stack
 - **Frontend**: HTML5, CSS3, JavaScript (Glassmorphism UI)
-- **Backend**: Python 3.13.5
+- **Backend**: Python 3.13+
 - **AI Engine**: Ollama (llama3.2:1b) - 100% offline
 - **Speech Recognition**: Google Speech Recognition API
 - **Text-to-Speech**: Edge-TTS (Microsoft Neural Voices)
@@ -106,27 +95,31 @@ python main.py
 ```
 VoiceAi/
 ├── main.py                 # Application entry point
-├── src/
-│   ├── ai_engine.py       # Ollama AI integration
-│   ├── voice_engine.py    # STT/TTS handling
-│   ├── actions.py         # System command execution
-│   ├── auth.py            # User authentication
-│   ├── database.py        # SQLite operations
+├── requirements.txt        # Python dependencies
+├── voice_ai.db            # SQLite database (auto-created)
+├── session.json           # Persistent session (auto-created)
+├── config.json            # Microphone config (auto-created)
+│
+├── src/                   # Backend source code
+│   ├── ai_engine.py       # AI brain - generates responses
+│   ├── voice_engine.py    # Voice input/output handling
+│   ├── actions.py         # System commands (open apps, search)
+│   ├── auth.py            # User login/signup
+│   ├── database.py        # Database operations
 │   └── logger.py          # Logging system
-├── ui/
-│   ├── index.html         # Main UI
-│   ├── style.css          # Glassmorphism styling
-│   └── script.js          # Frontend logic
-├── logs/                  # Application logs
-├── voice_ai.db           # User data & memory
-├── session.json          # Persistent session
-├── config.json           # Microphone config
-└── requirements.txt      # Python dependencies
+│
+├── ui/                    # Frontend interface
+│   ├── index.html         # Main UI structure
+│   ├── style.css          # Visual styling
+│   └── script.js          # User interaction logic
+│
+└── logs/                  # Application logs
+    └── nova.log           # Error and info logs
 ```
 
 ---
 
-## 🛡️ Privacy & Security
+## 🔐 Privacy & Security
 
 ### Data Storage
 - ✅ **100% Local**: All AI processing happens on your machine
@@ -146,7 +139,10 @@ VoiceAi/
 ### Microphone Settings
 Auto-calibrated on first run. To recalibrate:
 ```bash
-python test_mic.py
+# Delete config and restart
+del config.json  # Windows
+rm config.json   # Mac/Linux
+python main.py
 ```
 
 ### AI Model Settings
@@ -160,7 +156,7 @@ num_predict=60           # Response length
 ### Voice Settings
 Edit `src/voice_engine.py`:
 ```python
-pause_threshold=1.0      # Silence before stopping
+pause_threshold=2.0      # Silence before stopping
 timeout=8                # Max wait for speech start
 ```
 
@@ -169,9 +165,9 @@ timeout=8                # Max wait for speech start
 ## 🔧 Troubleshooting
 
 ### Microphone Not Working
-1. Run `python test_mic.py` to diagnose
-2. Check Windows microphone permissions
-3. Delete `config.json` to force recalibration
+1. Check Windows microphone permissions
+2. Delete `config.json` to force recalibration
+3. Restart application
 
 ### Ollama Not Responding
 1. Ensure Ollama is installed: `ollama --version`
@@ -185,8 +181,8 @@ timeout=8                # Max wait for speech start
 
 ### Slow Responses
 1. Upgrade model: `ollama pull llama3.2:3b`
-2. Or enable Gemini fallback in `.env`
-3. Check CPU usage during processing
+2. Check CPU usage during processing
+3. Close other heavy applications
 
 ---
 
@@ -211,7 +207,11 @@ timeout=8                # Max wait for speech start
 ### Change Agent Name
 Edit `src/ai_engine.py`:
 ```python
-SYSTEM_PROMPT = "You are NOVA..."  # Change to your name
+NOVA_INFO = {
+    "name": "YOUR_NAME",
+    "developer": "Your Name",
+    ...
+}
 ```
 
 ### Add New Apps
@@ -225,7 +225,7 @@ app_mapping = {
 ### Change Voice
 Edit `src/voice_engine.py`:
 ```python
-"--voice", "en-US-GuyNeural",  # Change to any Edge-TTS voice
+"--voice", "en-US-AriaNeural",  # Change to any Edge-TTS voice
 ```
 
 ---
@@ -266,12 +266,12 @@ MIT License - feel free to use for personal or commercial projects.
 
 ## 📚 Documentation
 
-- [Agent Training Guide](AGENT_TRAINING.md) - Professional behavior guide
-- [API Documentation](docs/API.md) - Backend API reference
-- [UI Guide](docs/UI.md) - Frontend customization
+- [Technical Documentation](TECHNICAL_DOCUMENTATION.md) - Complete technical guide
+- [API Documentation](docs/API.md) - Backend API reference (coming soon)
+- [UI Guide](docs/UI.md) - Frontend customization (coming soon)
 
 ---
 
-**Version**: 1.0.0  
-**Last Updated**: February 2026  
+**Version**: 2.0.0  
+**Last Updated**: 2024  
 **Status**: Production Ready ✅

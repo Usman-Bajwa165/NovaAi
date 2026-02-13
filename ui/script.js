@@ -66,6 +66,8 @@ function handleKey(event, nextId) {
 }
 
 // Global Agent Trigger
+let wakeWordListening = false;
+
 document.addEventListener("keydown", (e) => {
   const agentScreen = document.getElementById("agent-screen");
 
@@ -79,6 +81,28 @@ document.addEventListener("keydown", (e) => {
     }
   }
 });
+
+// Start wake word listener on load
+function startWakeWordListener() {
+  if (wakeWordListening || isListening) return;
+  
+  wakeWordListening = true;
+  
+  pywebview.api.start_wake_word_listener().then(result => {
+    wakeWordListening = false;
+    
+    if (result && result.status === "wake_word_detected") {
+      toggleListening();
+    } else {
+      // Continue listening for wake word
+      setTimeout(startWakeWordListener, 100);
+    }
+  }).catch(error => {
+    console.error("Wake word listener error:", error);
+    wakeWordListening = false;
+    setTimeout(startWakeWordListener, 1000);
+  });
+}
 
 // --- Auth & Persistence ---
 
@@ -194,6 +218,9 @@ function onAuthSuccess(user) {
   }
 
   addMessage("nova", "Neural link active. Systems fully operational.");
+  
+  // Start wake word listener
+  setTimeout(startWakeWordListener, 1000);
 }
 
 function handleLogout() {
@@ -301,13 +328,13 @@ async function toggleListening() {
     if (!result) {
       if (status) status.innerText = "SYSTEM STANDBY";
       resetMic();
+      startWakeWordListener();
       return;
     }
 
     // Keep showing PROCESSING during TTS generation
     if (result.status === "responding") {
       if (status) status.innerText = "🧠 PROCESSING...";
-      // Wait for speech to complete (finishResponding will update status)
       return;
     }
 
@@ -331,6 +358,7 @@ async function toggleListening() {
     if (status) status.innerText = "SYSTEM STANDBY";
   } finally {
     resetMic();
+    startWakeWordListener();
   }
 }
 
@@ -354,6 +382,7 @@ window.finishResponding = function() {
   const statusEl = document.getElementById("status-text");
   if (statusEl) statusEl.innerText = "SYSTEM STANDBY";
   resetMic();
+  startWakeWordListener();
 };
 
 // Word streaming from backend

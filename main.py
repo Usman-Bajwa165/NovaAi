@@ -2,15 +2,19 @@
 
 import os
 import sys
+
+# Redirect stderr to suppress pywebview Windows accessibility errors
+if sys.platform == 'win32':
+    import io
+    sys.stderr = io.StringIO()
+
 import json
 import threading
 import webview
-from dotenv import load_dotenv
 from src.auth import login_user, signup_user
 from src.ai_engine import generate_response
-from src.voice_engine import listen, speak
-
-load_dotenv()
+from src.voice_engine import listen, speak, listen_for_wake_word
+from src.database import ensure_db
 
 SESSION_FILE = os.path.join(os.path.dirname(__file__), "session.json")
 
@@ -129,7 +133,7 @@ class API:
             if not self.user_id:
                 return {"status": "error", "message": "Not authenticated"}
 
-            user_input = listen()
+            user_input = listen(skip_wake_word=True)
 
             if user_input == "READY_STATUS":
                 return {"status": "calibrating"}
@@ -158,6 +162,19 @@ class API:
             return {"status": "idle"}
         except Exception as e:
             print(f"Voice Session Error: {e}")
+            return {"status": "error", "message": str(e)}
+    
+    def start_wake_word_listener(self):
+        """Start listening for wake word 'Nova'."""
+        try:
+            if not self.user_id:
+                return {"status": "error", "message": "Not authenticated"}
+            
+            if listen_for_wake_word():
+                return {"status": "wake_word_detected"}
+            return {"status": "no_wake_word"}
+        except Exception as e:
+            print(f"Wake word error: {e}")
             return {"status": "error", "message": str(e)}
 
     def _speak_with_stream(self, text):
@@ -210,10 +227,10 @@ def start_reloader():
 
 def start_app():
     """Initialize and start the application."""
+    ensure_db()
+    
     api = API()
     ui_path = os.path.join(os.path.dirname(__file__), "ui", "index.html")
-
-    threading.Thread(target=start_reloader, daemon=True).start()
 
     window = webview.create_window(
         "NOVA - Neural Voice Interface",
@@ -225,7 +242,7 @@ def start_app():
         resizable=True,
     )
     api.window = window
-    webview.start()
+    webview.start(debug=False)
 
 
 if __name__ == "__main__":
