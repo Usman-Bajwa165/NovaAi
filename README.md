@@ -1,277 +1,245 @@
-# NOVA - Professional AI Voice Assistant 🤖
+# NOVA - AI Voice Assistant
 
-A premium, locally-running AI voice assistant that listens, learns, and acts. Built with Python 3.13+ and powered by Ollama for complete offline functionality.
+NOVA is a privacy-focused voice assistant that runs entirely on your computer. Talk to it naturally, and it'll help you open apps, search the web, answer questions, and more—all while keeping your data local and secure.
 
-## ✨ Key Features
+## What Makes NOVA Different?
 
-### 🎙️ Advanced Voice Intelligence
-- **Voice-to-Voice Loop**: Real-time speech recognition (Google STT) and professional neural voice synthesis (Edge-TTS)
-- **Continuous Learning**: Stores every interaction in local SQLite memory for contextual conversations
-- **Intent Recognition**: Powered by Ollama (llama3.2:1b) for intelligent, context-aware responses
-- **100% Offline AI**: All AI processing happens locally on your machine
+**Privacy First**: Your conversations never leave your machine. NOVA uses Ollama for AI processing, which runs completely offline. The only thing sent online is your voice audio for speech recognition (using Google's API)—everything else stays on your computer.
 
-### 🛡️ Secure User System
-- **Authorized Access**: Secure login with email and password (bcrypt encrypted)
-- **Smart Onboarding**: Automatic account creation and guided setup
-- **Privacy First**: All data stored locally in `voice_ai.db` and `session.json`
-- **Persistent Sessions**: Auto-login on restart until you click "PURGE SESSION"
+**Actually Useful**: NOVA doesn't just chat. It can open applications, search Google, check the weather, tell you the time, and execute real system commands. Just ask naturally: "Open Chrome and search for Python tutorials" or "What's the weather in London?"
 
-### ⚡ System Actions
-NOVA doesn't just talk; she takes action:
-- **Open Apps**: "Open Chrome", "Launch Calculator", "Start WhatsApp"
-- **Web Search**: "Search Python tutorials", "Find best laptops 2024"
-- **Weather**: "Tell me temperature in Bahawalpur Pakistan"
-- **Websites**: "Open YouTube", "Go to SoundCloud"
-- **Time/Date**: "What time is it", "What's today's date"
+**Smart Memory**: NOVA remembers your conversations in a local SQLite database, so it understands context and can have more natural back-and-forth discussions.
 
-### 💎 Professional UI/UX
-- **Futuristic Design**: Glassmorphism, glowing visualizer, rotating HUD elements
-- **Live Status**: Real-time feedback (🎤 Listening, 🧠 Processing, 💬 Responding)
-- **Word Streaming**: Text appears as NOVA speaks (subtitle effect)
-- **Responsive**: Works on desktop and adapts to different screen sizes
+**Wake Word Activation**: Say "Nova" to activate it, press Enter, or click the microphone button. You'll hear a beep when it's listening.
 
----
+## Getting Started
 
-## 🚀 Quick Start
+### What You'll Need
 
-### Prerequisites
-- **Python 3.13+** installed
-- **Microphone**: Ensure your default system mic is active
-- **Ollama**: Download from [ollama.com](https://ollama.com/download)
+- Python 3.13 or newer
+- A working microphone
+- [Ollama](https://ollama.com/download) installed on your system
+- Windows 10/11, macOS, or Linux
 
 ### Installation
 
-```bash
-# Navigate to project
-cd VoiceAi
+1. **Clone or download this repository**
+   ```bash
+   git clone <repository-url>
+   cd VoiceAi
+   ```
 
-# Activate virtual environment
-.\venv\Scripts\activate  # Windows
-source venv/bin/activate  # Mac/Linux
+2. **Set up a virtual environment** (recommended)
+   ```bash
+   python -m venv venv
+   
+   # On Windows:
+   .\venv\Scripts\activate
+   
+   # On Mac/Linux:
+   source venv/bin/activate
+   ```
 
-# Install dependencies
-pip install -r requirements.txt
+3. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-# Pull Ollama model
-ollama pull llama3.2:1b
+4. **Download the AI model**
+   ```bash
+   ollama pull llama3.2:1b
+   ```
 
-# Run NOVA
-python main.py
-```
+5. **Run NOVA**
+   ```bash
+   python main.py
+   ```
 
----
+On first run, NOVA will calibrate your microphone automatically. Just stay quiet for a moment while it adjusts.
 
-## 🎯 Usage Examples
+## How to Use NOVA
 
 ### Voice Commands
-```
-"Open Chrome"                    → Launches Google Chrome
-"Search Python tutorials"        → Opens Google search
-"Tell me weather in London"      → Opens weather info
-"What time is it"                → Tells current time
-"Open YouTube"                   → Opens youtube.com
-"Who are you"                    → NOVA introduces herself
-```
 
-### Keyboard Shortcuts
-- **Enter**: Start/stop listening (when in agent screen)
-- **Click Mic Button**: Manual voice activation
+NOVA understands natural language. Here are some examples:
 
----
+**Opening Applications**
+- "Open Chrome"
+- "Launch Calculator"
+- "Start WhatsApp"
 
-## 🏗️ Architecture
+**Web Searches**
+- "Search for Python tutorials"
+- "Find the best laptops 2024"
 
-### Tech Stack
-- **Frontend**: HTML5, CSS3, JavaScript (Glassmorphism UI)
-- **Backend**: Python 3.13+
-- **AI Engine**: Ollama (llama3.2:1b) - 100% offline
-- **Speech Recognition**: Google Speech Recognition API
-- **Text-to-Speech**: Edge-TTS (Microsoft Neural Voices)
-- **Database**: SQLite3 (local storage)
-- **Authentication**: bcrypt password hashing
-- **UI Framework**: pywebview (native window)
+**Weather & Time**
+- "What's the weather in New York?"
+- "What time is it?"
+- "What's today's date?"
 
-### Project Structure
+**General Questions**
+- "Who are you?"
+- "Tell me about yourself"
+
+### Activation Methods
+
+1. **Wake Word**: Say "Nova" and wait for the beep
+2. **Keyboard**: Press Enter when the app is focused
+3. **Mouse**: Click the microphone button
+
+### User Accounts
+
+NOVA requires you to create an account on first use. This is stored locally and encrypted with bcrypt. Your session persists between restarts—click "PURGE SESSION" to log out.
+
+## Project Structure
+
 ```
 VoiceAi/
-├── main.py                 # Application entry point
-├── requirements.txt        # Python dependencies
-├── voice_ai.db            # SQLite database (auto-created)
-├── session.json           # Persistent session (auto-created)
-├── config.json            # Microphone config (auto-created)
-│
-├── src/                   # Backend source code
-│   ├── ai_engine.py       # AI brain - generates responses
-│   ├── voice_engine.py    # Voice input/output handling
-│   ├── actions.py         # System commands (open apps, search)
-│   ├── auth.py            # User login/signup
-│   ├── database.py        # Database operations
-│   └── logger.py          # Logging system
-│
-├── ui/                    # Frontend interface
-│   ├── index.html         # Main UI structure
-│   ├── style.css          # Visual styling
-│   └── script.js          # User interaction logic
-│
-└── logs/                  # Application logs
-    └── nova.log           # Error and info logs
+├── main.py              # Application entry point
+├── requirements.txt     # Python dependencies
+├── src/
+│   ├── ai_engine.py     # AI response generation (Ollama)
+│   ├── voice_engine.py  # Speech recognition and TTS
+│   ├── actions.py       # System commands (apps, search, etc.)
+│   ├── auth.py          # User authentication
+│   ├── database.py      # SQLite operations
+│   └── logger.py        # Logging system
+├── ui/
+│   ├── index.html       # Main interface
+│   ├── style.css        # Styling
+│   └── script.js        # Frontend logic
+└── logs/                # Application logs (auto-created)
 ```
 
----
+**Auto-generated files** (not in git):
+- `voice_ai.db` - User accounts and conversation memory
+- `session.json` - Login session persistence
+- `config.json` - Microphone calibration settings
 
-## 🔐 Privacy & Security
+## Technical Details
 
-### Data Storage
-- ✅ **100% Local**: All AI processing happens on your machine
-- ✅ **No Cloud**: Ollama runs completely offline
-- ✅ **Encrypted Passwords**: bcrypt hashing for user credentials
-- ✅ **Local Database**: SQLite stores all data locally
-- ✅ **Session Control**: Clear session anytime with "PURGE SESSION"
+### How It Works
 
-### What Gets Sent Online?
-- **Speech Recognition**: Audio sent to Google STT API (required for voice input)
-- **Nothing Else**: All AI, memory, and actions are 100% local
+1. **You speak**: Your voice is captured via your microphone
+2. **Speech-to-Text**: Audio is sent to Google's Speech Recognition API
+3. **Intent Processing**: NOVA analyzes your request locally using Ollama
+4. **Action Execution**: If you asked to open an app or search, NOVA does it
+5. **Response Generation**: NOVA formulates a reply using AI
+6. **Text-to-Speech**: The response is spoken using Microsoft Edge TTS
+7. **Memory Storage**: The conversation is saved locally for context
 
----
+### Technologies Used
 
-## ⚙️ Configuration
+- **Python 3.13+**: Core language
+- **Ollama (llama3.2:1b)**: Local AI model for response generation
+- **SpeechRecognition**: Voice input processing
+- **Edge-TTS**: Neural voice synthesis (Guy voice)
+- **pywebview**: Native desktop window
+- **SQLite**: Local database for users and memory
+- **bcrypt**: Password encryption
+- **pygame**: Audio playback
 
-### Microphone Settings
-Auto-calibrated on first run. To recalibrate:
-```bash
-# Delete config and restart
-del config.json  # Windows
-rm config.json   # Mac/Linux
-python main.py
-```
+### Performance
 
-### AI Model Settings
-Edit `src/ai_engine.py`:
+- **Response time**: 4-8 seconds end-to-end
+- **AI processing**: 2-4 seconds (depends on your CPU)
+- **Memory usage**: ~500MB with model loaded
+- **Disk space**: ~2GB for AI model
+
+## Customization
+
+### Change NOVA's Voice
+
+Edit `src/voice_engine.py` and change the voice parameter:
 ```python
-model="llama3.2:1b"      # Fast, lightweight
-temperature=0.4          # Response creativity
-num_predict=60           # Response length
+"--voice", "en-US-AriaNeural",  # Female voice
+"--voice", "en-GB-RyanNeural",  # British male
 ```
 
-### Voice Settings
-Edit `src/voice_engine.py`:
-```python
-pause_threshold=2.0      # Silence before stopping
-timeout=8                # Max wait for speech start
-```
+See [Edge-TTS voices](https://github.com/rany2/edge-tts#voice-list) for all options.
 
----
+### Add More Applications
 
-## 🔧 Troubleshooting
-
-### Microphone Not Working
-1. Check Windows microphone permissions
-2. Delete `config.json` to force recalibration
-3. Restart application
-
-### Ollama Not Responding
-1. Ensure Ollama is installed: `ollama --version`
-2. Pull the model: `ollama pull llama3.2:1b`
-3. Test: `ollama run llama3.2:1b "Hello"`
-
-### Session Not Persisting
-1. Check if `session.json` exists
-2. Ensure write permissions in project folder
-3. Click "PURGE SESSION" and login again
-
-### Slow Responses
-1. Upgrade model: `ollama pull llama3.2:3b`
-2. Check CPU usage during processing
-3. Close other heavy applications
-
----
-
-## 📊 Performance
-
-### Response Times
-- **Listening**: < 1 second to start
-- **Processing**: 2-4 seconds (Ollama)
-- **Speaking**: 1-3 seconds (TTS)
-- **Total**: 4-8 seconds end-to-end
-
-### System Requirements
-- **CPU**: 4+ cores recommended
-- **RAM**: 4GB minimum, 8GB recommended
-- **Storage**: 2GB for models
-- **OS**: Windows 10/11, macOS, Linux
-
----
-
-## 🎨 Customization
-
-### Change Agent Name
-Edit `src/ai_engine.py`:
-```python
-NOVA_INFO = {
-    "name": "YOUR_NAME",
-    "developer": "Your Name",
-    ...
-}
-```
-
-### Add New Apps
-Edit `src/actions.py`:
+Edit `src/actions.py` and add to the `app_mapping` dictionary:
 ```python
 app_mapping = {
-    "myapp": "myapp.exe",  # Add your app
+    "spotify": "spotify.exe",
+    "your-app": "your-app.exe",
 }
 ```
 
-### Change Voice
-Edit `src/voice_engine.py`:
+### Adjust AI Behavior
+
+Edit `src/ai_engine.py` to modify the system prompt or model parameters:
 ```python
-"--voice", "en-US-AriaNeural",  # Change to any Edge-TTS voice
+model="llama3.2:1b"      # Try llama3.2:3b for better quality
+temperature=0.4          # Lower = more focused, higher = more creative
+num_predict=60           # Max response length in tokens
 ```
 
----
+## Troubleshooting
 
-## 🤝 Contributing
+**Microphone not working?**
+- Check Windows microphone permissions
+- Delete `config.json` and restart to recalibrate
+- Make sure no other app is using the microphone
 
-Contributions welcome! Please:
+**Ollama errors?**
+In powershell/cmd:
+- Verify installation: `ollama --version`
+- Ensure model is downloaded: `ollama pull llama3.2:1b`
+- Test it: `ollama run llama3.2:1b "Hello"`
+- To run app do: `ollama server`
+
+**Slow responses?**
+- Close other heavy applications
+- Try a smaller model or upgrade your CPU
+- Check if Ollama is using GPU acceleration
+
+**Session not saving?**
+- Ensure the app has write permissions in its directory
+- Check if `session.json` exists after login
+- Try clicking "PURGE SESSION" and logging in again
+
+## Privacy & Security
+
+**What stays local:**
+- All AI processing (Ollama runs on your machine)
+- Your conversation history
+- User accounts and passwords (bcrypt encrypted)
+- All system actions and commands
+
+**What goes online:**
+- Voice audio for speech recognition (Google STT API)
+- Web searches and website opens (when you request them)
+
+NOVA never sends your conversation history, user data, or AI processing to any server.
+
+## Contributing
+
+Contributions are welcome! If you'd like to add features or fix bugs:
+
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
----
+## License
 
-## 📝 License
+MIT License - see LICENSE file for details. Free to use for personal or commercial projects.
 
-MIT License - feel free to use for personal or commercial projects.
+## Credits
 
----
+Developed by **Usman Bajwa**
 
-## 👨‍💻 Developer
-
-**Usman Bajwa**
-- Professional AI Voice Agent Developer
-- Specialized in offline AI systems
-- Privacy-focused solutions
-
----
-
-## 🙏 Acknowledgments
-
-- **Ollama**: For amazing local AI models
-- **Google**: Speech Recognition API
-- **Microsoft**: Edge-TTS neural voices
-- **Python Community**: For excellent libraries
-
----
-
-## 📚 Documentation
-
-- [Technical Documentation](TECHNICAL_DOCUMENTATION.md) - Complete technical guide
-- [API Documentation](docs/API.md) - Backend API reference (coming soon)
-- [UI Guide](docs/UI.md) - Frontend customization (coming soon)
+Built with:
+- [Ollama](https://ollama.com/) - Local AI models
+- [Google Speech Recognition](https://cloud.google.com/speech-to-text) - Voice input
+- [Edge-TTS](https://github.com/rany2/edge-tts) - Voice synthesis
+- [pywebview](https://pywebview.flowrl.com/) - Desktop UI
 
 ---
 
 **Version**: 2.0.0  
-**Last Updated**: 2024  
-**Status**: Production Ready ✅
+**Status**: Production Ready
